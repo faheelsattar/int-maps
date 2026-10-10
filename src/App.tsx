@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { APIProvider, useMap, useMapsLibrary } from '@vis.gl/react-google-maps';
 import { AnimatePresence, motion } from 'framer-motion';
+import { HistorianOpening } from './components/HistorianOpening';
 import { MapView } from './components/MapView';
 import { StoryPanel } from './components/StoryPanel';
 import { TopBar, type Settings } from './components/TopBar';
@@ -50,6 +51,7 @@ function Experience() {
   const [story, setStory] = useState<Story | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showTome, setShowTome] = useState(false);
   const told = useRef<string[]>([]);
   const request = useRef<AbortController | null>(null);
   const lastQuery = useRef<{ pin: LatLng; focus?: NearbyEcho } | null>(null);
@@ -91,6 +93,7 @@ function Experience() {
       setStory(null);
       setError('');
       setLoading(true);
+      setShowTome(true);
       if (map && (map.getZoom() ?? 0) < 5) flyTo(map, p, 6);
       else map?.panTo(p);
 
@@ -128,6 +131,7 @@ function Experience() {
     setPin(null);
     setStory(null);
     setLoading(false);
+    setShowTome(false);
     setError('');
     told.current = [];
   }, []);
@@ -230,8 +234,17 @@ function Experience() {
     const onKey = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement).closest('input, textarea')) return;
       if (e.key === 'Escape') {
-        if (voice.state !== 'idle') voice.cancel();
-        else close();
+        if (showTome) {
+          setShowTome(false);
+        } else if (voice.state !== 'idle') {
+          voice.cancel();
+        } else {
+          close();
+        }
+      }
+      if (e.key === 'b' || e.key === 'B') {
+        e.preventDefault();
+        setShowTome((s) => !s);
       }
       if (e.key === 'm' || e.key === 'M') {
         e.preventDefault();
@@ -244,7 +257,7 @@ function Experience() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [close, narration, story, voice]);
+  }, [close, narration, story, voice, showTome]);
 
   const panelOpen = !!pin;
 
@@ -258,8 +271,23 @@ function Experience() {
         onEcho={(e) => void tellStory({ lat: e.lat, lng: e.lng }, { focus: e })}
       />
       <div className="vignette pointer-events-none absolute inset-0" />
-      <TopBar settings={settings} onChange={setSettings} />
+      <TopBar settings={settings} onChange={setSettings} onOpenTome={() => setShowTome(true)} />
       <VoiceToast voice={voice} />
+
+      <HistorianOpening
+        story={story}
+        loading={loading}
+        place={place}
+        isOpen={showTome}
+        onClose={() => setShowTome(false)}
+        onStartNarration={() => {
+          setShowTome(false);
+          if (narration.state === 'paused' || narration.state === 'idle') {
+            narration.toggle();
+          }
+        }}
+        isNarrating={narration.state === 'playing'}
+      />
 
       <AnimatePresence>
         {panelOpen && (
@@ -276,6 +304,7 @@ function Experience() {
             onAnother={() => pin && void tellStory(pin)}
             onEcho={(e) => void tellStory({ lat: e.lat, lng: e.lng }, { focus: e })}
             onRetry={() => lastQuery.current && void tellStory(lastQuery.current.pin, { focus: lastQuery.current.focus })}
+            onOpenTome={() => setShowTome(true)}
           />
         )}
       </AnimatePresence>

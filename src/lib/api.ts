@@ -110,3 +110,24 @@ export async function sendCommand(transcript: string, context: CommandContext, s
   if (!res.ok) throw new Error(data.error || `Command failed (${res.status})`);
   return data as Command;
 }
+
+export interface IllustrationResponse {
+  imageUrl: string;
+  cached: boolean;
+}
+
+export async function fetchIllustration(
+  body: { title: string; place: string; year?: number | null; fact?: string },
+  signal?: AbortSignal,
+): Promise<IllustrationResponse> {
+  const res = await fetch('/api/illustrate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Illustration request failed (${res.status})`);
+  return data as IllustrationResponse;
+}
+

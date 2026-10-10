@@ -222,6 +222,70 @@ body,
   .beacon {
     border-color: rgba(253, 230, 170, 0.8);
   }
+
+  /* Historian & Antique Tome styling */
+  .candle-glow {
+    animation: candleFlicker 3.2s ease-in-out infinite;
+  }
+
+  .parchment-page {
+    background-color: #f6ebd2;
+    background-image:
+      radial-gradient(ellipse at 50% 30%, rgba(255, 255, 255, 0.45), transparent 70%),
+      radial-gradient(circle at 12% 18%, rgba(120, 72, 28, 0.08), transparent 35%),
+      radial-gradient(circle at 88% 82%, rgba(90, 52, 18, 0.1), transparent 45%),
+      linear-gradient(to right, rgba(0, 0, 0, 0.14) 0%, rgba(0, 0, 0, 0.03) 4%, transparent 12%, transparent 88%, rgba(0, 0, 0, 0.04) 96%, rgba(0, 0, 0, 0.16) 100%);
+    color: #2c2014;
+    box-shadow: inset 0 0 40px rgba(92, 53, 16, 0.24);
+  }
+
+  .drop-cap {
+    float: left;
+    font-family: var(--font-display);
+    font-size: 3.2rem;
+    line-height: 0.82;
+    padding-top: 4px;
+    padding-right: 9px;
+    padding-bottom: 2px;
+    color: #8b2500;
+    text-shadow: 1px 1px 0 rgba(212, 168, 83, 0.5);
+  }
+}
+
+@keyframes candleFlicker {
+  0%, 100% {
+    opacity: 0.82;
+    transform: scale(1);
+  }
+  25% {
+    opacity: 0.95;
+    transform: scale(1.03) translateY(-1px);
+  }
+  50% {
+    opacity: 0.76;
+    transform: scale(0.97);
+  }
+  75% {
+    opacity: 0.92;
+    transform: scale(1.02);
+  }
+}
+
+@keyframes floatMote {
+  0% {
+    transform: translateY(0) translateX(0);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.75;
+  }
+  80% {
+    opacity: 0.75;
+  }
+  100% {
+    transform: translateY(-60px) translateX(12px);
+    opacity: 0;
+  }
 }
 
 @keyframes shimmer {

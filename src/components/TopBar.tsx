@@ -27,7 +27,15 @@ const TONES: { id: Tone; label: string; icon: string }[] = [
   { id: 'witty', label: 'Witty', icon: '🎩' },
 ];
 
-export function TopBar({ settings, onChange }: { settings: Settings; onChange: (s: Settings) => void }) {
+export function TopBar({
+  settings,
+  onChange,
+  onOpenTome,
+}: {
+  settings: Settings;
+  onChange: (s: Settings) => void;
+  onOpenTome?: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -51,7 +59,19 @@ export function TopBar({ settings, onChange }: { settings: Settings; onChange: (
         </div>
       </div>
 
-      <div ref={ref} className="pointer-events-auto relative">
+      <div className="flex items-center gap-2">
+        {onOpenTome && (
+          <button
+            onClick={onOpenTome}
+            title="Open Historian Tome animation"
+            className="glass pointer-events-auto flex items-center gap-2 rounded-2xl px-3.5 py-2.5 text-sm text-amber-200 transition hover:bg-white/[0.08] hover:text-amber-100"
+          >
+            <span className="text-base leading-none">📖</span>
+            <span className="hidden font-medium sm:inline">Tome</span>
+          </button>
+        )}
+
+        <div ref={ref} className="pointer-events-auto relative">
         <button onClick={() => setOpen((o) => !o)} className="glass flex items-center gap-2.5 rounded-2xl px-3.5 py-2.5 text-sm text-white/85 transition hover:bg-white/[0.07]">
           <span className="text-lg leading-none">{settings.voice.flag}</span>
           <span className="font-medium">{settings.voice.name}</span>
@@ -147,6 +167,7 @@ export function TopBar({ settings, onChange }: { settings: Settings; onChange: (
             </motion.div>
           )}
         </AnimatePresence>
+        </div>
       </div>
     </header>
   );
