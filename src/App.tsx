@@ -6,13 +6,18 @@ import { MapView } from './components/MapView';
 import { StoryPanel } from './components/StoryPanel';
 import { TopBar, type Settings } from './components/TopBar';
 import { MicButton, VoiceToast } from './components/Voice';
-import { fetchStory, type Command, type Era, type LatLng, type NearbyEcho, type Story, type Tone } from './lib/api';
+import { fetchScene, fetchShot, fetchStories, fetchStory, type Command, type CommandContext, type StoryChoice, type Era, type LatLng, type NearbyEcho, type Story, type Tone } from './lib/api';
 import { flyTo } from './lib/flyTo';
 import { unlockAudio } from './lib/narrator';
 import { useNarration } from './lib/useNarration';
 import { speak, stopSpeaking } from './lib/speak';
 import { useVoice } from './lib/useVoice';
-import { DEFAULT_VOICE, VOICES, localVoice } from './lib/voices';
+import { useConversation } from './lib/useConversation';
+import { useLocalNarrator } from './lib/useLocalNarrator';
+import { DEFAULT_VOICE, VOICES } from './lib/voices';
+
+type Focus = NearbyEcho & { teaser?: string };
+type Choices = { pin: LatLng; items: StoryChoice[]; loading: boolean };
 
 const MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
 
@@ -45,7 +50,7 @@ export default function App() {
 function Experience() {
   const map = useMap();
   const geocoding = useMapsLibrary('geocoding');
-  const [settings, setSettings] = useState<Settings>({ voice: DEFAULT_VOICE, localAccent: true, era: 'any', tone: 'epic', speed: 0.5 });
+  const [settings, setSettings] = useState<Settings>({ voice: DEFAULT_VOICE, localAccent: true, historianBook: true, era: 'any', tone: 'epic', speed: 0.5 });
   const [pin, setPin] = useState<LatLng | null>(null);
   const [place, setPlace] = useState('');
   const [story, setStory] = useState<Story | null>(null);
@@ -54,17 +59,42 @@ function Experience() {
   const [showTome, setShowTome] = useState(false);
   const told = useRef<string[]>([]);
   const request = useRef<AbortController | null>(null);
-  const lastQuery = useRef<{ pin: LatLng; focus?: NearbyEcho } | null>(null);
+  const lastQuery = useRef<{ pin: LatLng; focus?: Focus } | null>(null);
+  // Stories offered for the current pin. `shelf` remembers them so "another story" can reopen the list.
+  const [choices, setChoices] = useState<Choices | null>(null);
+  const shelf = useRef<{ pin: LatLng; items: StoryChoice[]; offered: string[] } | null>(null);
+  // The historian's study, painted for the place while the list loads (null: the default study).
+  const [scene, setScene] = useState<string | null>(null);
+  // An establishing shot painted while the chosen story is being written, so the film opens on it.
+  const [prologue, setPrologue] = useState<{ title: string; url: string } | null>(null);
+  // Where the pin is, so the local narrator can be prepared while the listener picks a story.
+  const [locale, setLocale] = useState<{ countryCode: string; place: string } | null>(null);
+  const sceneFor = useRef('');
 
   // With local accent on, a story is narrated (and questions about it answered) in the accent of its place.
-  const narrator = story && settings.localAccent ? localVoice(story, settings.voice) : settings.voice;
-  const narration = useNarration(story?.paragraphs ?? null, narrator.id, settings.speed);
+  const { voice: narrator, ready: narratorReady } = useLocalNarrator(
+    pin && {
+      countryCode: locale?.countryCode || story?.countryCode || '',
+      place: locale?.place || story?.place || place,
+      accent: story?.accent ?? undefined,
+    },
+    settings.voice,
+    settings.localAccent,
+  );
+  // The historian starts reading once his book is open (or straight away if the book was closed).
+  const [bookOpen, setBookOpen] = useState<Story | null>(null);
+  const [released, setReleased] = useState<Story | null>(null);
+  useEffect(() => {
+    if (story && (!showTome || bookOpen === story)) setReleased(story);
+  }, [story, showTome, bookOpen]);
+  const narration = useNarration(story && released === story && narratorReady ? story.paragraphs : null, narrator.id, settings.speed);
   const narrationRef = useRef(narration);
   narrationRef.current = narration;
 
-  const reverseGeocode = useCallback(
-    async (p: LatLng) => {
-      if (!geocoding) return '';
+  /** The place name for a point, plus its country so a local narrator can be prepared early. */
+  const locate = useCallback(
+    async (p: LatLng): Promise<{ name: string; countryCode: string }> => {
+      if (!geocoding) return { name: '', countryCode: '' };
       try {
         const geocoder = new geocoding.Geocoder();
         const { results } = await Promise.race([
@@ -72,16 +102,18 @@ function Experience() {
           new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), 2500)),
         ]);
         const best = results.find((r) => r.types.some((t) => ['locality', 'administrative_area_level_2', 'administrative_area_level_1', 'country', 'natural_feature'].includes(t)));
-        return (best ?? results[0])?.formatted_address ?? '';
+        const country = results.flatMap((r) => r.address_components).find((c) => c.types.includes('country'));
+        return { name: (best ?? results[0])?.formatted_address ?? '', countryCode: country?.short_name ?? '' };
       } catch {
-        return ''; // Geocoding API not enabled, or open ocean, Gemini works from coordinates alone.
+        return { name: '', countryCode: '' }; // Geocoding API not enabled, or open ocean, Gemini works from coordinates alone.
       }
     },
     [geocoding],
   );
+  const reverseGeocode = useCallback(async (p: LatLng) => (await locate(p)).name, [locate]);
 
   const tellStory = useCallback(
-    async (p: LatLng, opts: { fresh?: boolean; focus?: NearbyEcho; era?: Era; tone?: Tone } = {}) => {
+    async (p: LatLng, opts: { fresh?: boolean; focus?: Focus; era?: Era; tone?: Tone; name?: string } = {}) => {
       unlockAudio();
       request.current?.abort();
       const ctrl = new AbortController();
@@ -91,13 +123,14 @@ function Experience() {
 
       setPin(p);
       setStory(null);
+      setChoices(null);
       setError('');
       setLoading(true);
-      setShowTome(true);
+      setShowTome(settings.historianBook);
       if (map && (map.getZoom() ?? 0) < 5) flyTo(map, p, 6);
       else map?.panTo(p);
 
-      const name = opts.focus ? opts.focus.title : await reverseGeocode(p);
+      const name = opts.name ?? (opts.focus ? opts.focus.title : await reverseGeocode(p));
       if (ctrl.signal.aborted) return;
       setPlace(name);
       try {
@@ -108,7 +141,9 @@ function Experience() {
             era: opts.era ?? settings.era,
             tone: opts.tone ?? settings.tone,
             exclude: told.current,
-            ...(opts.focus ? { focus: `${opts.focus.title}${opts.focus.year != null ? ` (${opts.focus.year})` : ''}` } : {}),
+            ...(opts.focus
+              ? { focus: `${opts.focus.title}${opts.focus.year != null ? ` (${opts.focus.year})` : ''}${opts.focus.teaser ? `: ${opts.focus.teaser}` : ''}` }
+              : {}),
           },
           ctrl.signal,
         );
@@ -123,13 +158,103 @@ function Experience() {
         if (!ctrl.signal.aborted) setLoading(false);
       }
     },
-    [map, reverseGeocode, settings.era, settings.tone],
+    [map, reverseGeocode, settings.era, settings.tone, settings.historianBook],
   );
+
+  /** A place was chosen: the historian lays out several of its stories to pick from. */
+  const explore = useCallback(
+    async (p: LatLng, opts: { fresh?: boolean; era?: Era; name?: string } = {}) => {
+      unlockAudio();
+      request.current?.abort();
+      const ctrl = new AbortController();
+      request.current = ctrl;
+      lastQuery.current = { pin: p };
+      if (opts.fresh) told.current = [];
+      const offered = shelf.current?.pin === p ? shelf.current.offered : [];
+
+      setPin(p);
+      setStory(null);
+      setError('');
+      setLoading(false);
+      setChoices({ pin: p, items: [], loading: true });
+      setShowTome(settings.historianBook);
+      if (map && (map.getZoom() ?? 0) < 5) flyTo(map, p, 6);
+      else map?.panTo(p);
+
+      const where = await locate(p);
+      const name = opts.name ?? where.name;
+      if (ctrl.signal.aborted) return;
+      setPlace(name);
+      setLocale({ countryCode: where.countryCode, place: name });
+      if (settings.historianBook && name && sceneFor.current !== name) {
+        sceneFor.current = name;
+        setScene(null);
+        fetchScene(name, settings.voice.gender)
+          .then((url) => {
+            const img = new Image();
+            img.onload = () => sceneFor.current === name && setScene(url);
+            img.src = url;
+          })
+          .catch(() => {}); // keep the default study
+      }
+      try {
+        const items = await fetchStories({ ...p, place: name, era: opts.era ?? settings.era, exclude: [...told.current, ...offered].slice(-10) }, ctrl.signal);
+        if (ctrl.signal.aborted) return;
+        shelf.current = { pin: p, items, offered: [...offered, ...items.map((c) => c.title)] };
+        setChoices({ pin: p, items, loading: false });
+      } catch (e) {
+        if ((e as Error).name === 'AbortError' || ctrl.signal.aborted) return;
+        setChoices(null);
+        setError((e as Error).message);
+      }
+    },
+    [map, locate, settings.era, settings.historianBook, settings.voice.gender],
+  );
+
+  /** The listener picked a story from the list. */
+  const choose = useCallback(
+    (c: StoryChoice) => {
+      if (!pin) return;
+      if (shelf.current?.pin === pin) shelf.current.items = shelf.current.items.filter((x) => x !== c);
+      setPrologue(null);
+      if (settings.historianBook)
+        fetchShot(
+          { look: 'cinematic oil painting, warm low light, muted historical palette', place, year: c.year },
+          { from: 0, prompt: `Wide establishing shot that sets the scene for this moment in history: ${c.title}. ${c.teaser}`, motion: 'zoom-in', focusX: 50, focusY: 45, atmosphere: 'dust' },
+        )
+          .then((url) => {
+            const img = new Image();
+            img.onload = () => setPrologue({ title: c.title, url });
+            img.src = url;
+          })
+          .catch(() => {}); // the film opens on the study instead
+      void tellStory(pin, { focus: { title: c.title, year: c.year, teaser: c.teaser, lat: pin.lat, lng: pin.lng }, name: place });
+    },
+    [pin, place, tellStory, settings.historianBook],
+  );
+
+  /** "Another story here": back to the list (fetching more once it runs out). */
+  const another = useCallback(() => {
+    if (!pin) return;
+    const left = shelf.current?.pin === pin ? shelf.current.items : [];
+    if (!left.length) return void explore(pin, { name: place });
+    request.current?.abort();
+    lastQuery.current = { pin };
+    setStory(null);
+    setError('');
+    setLoading(false);
+    setChoices({ pin, items: left, loading: false });
+    setShowTome(settings.historianBook);
+  }, [pin, place, explore, settings.historianBook]);
 
   const close = useCallback(() => {
     request.current?.abort();
     setPin(null);
     setStory(null);
+    setChoices(null);
+    setScene(null);
+    setLocale(null);
+    sceneFor.current = '';
     setLoading(false);
     setShowTome(false);
     setError('');
@@ -138,26 +263,67 @@ function Experience() {
 
   const surprise = useCallback(() => {
     const s = SURPRISES[Math.floor(Math.random() * SURPRISES.length)];
-    void tellStory({ lat: s.lat, lng: s.lng }, { fresh: true });
-  }, [tellStory]);
+    void explore({ lat: s.lat, lng: s.lng }, { fresh: true });
+  }, [explore]);
 
   // ---- Voice: Gradium is the main input. Speak a city, a question, or a command. ----
   const resumeAfterVoice = useRef(false);
 
-  const goTo = useCallback(
+  /** Geocodes a spoken or typed place and tells its story; false if it isn't on the map. */
+  const findPlace = useCallback(
     async (query: string) => {
       try {
-        if (!geocoding) throw new Error('no geocoder');
+        if (!geocoding) return false;
         const { results } = await new geocoding.Geocoder().geocode({ address: query });
         const loc = results[0]?.geometry.location;
-        if (!loc) throw new Error('not found');
-        void tellStory({ lat: loc.lat(), lng: loc.lng() }, { fresh: true });
+        if (!loc) return false;
+        void explore({ lat: loc.lat(), lng: loc.lng() }, { fresh: true });
+        return true;
       } catch {
-        void speak(`Sorry, I couldn't find ${query} on the map.`, settings.voice.id, settings.speed);
+        return false;
       }
     },
-    [geocoding, tellStory, settings.voice.id, settings.speed],
+    [geocoding, explore],
   );
+
+  const goTo = useCallback(
+    async (query: string) => {
+      if (!(await findPlace(query))) void speak(`Sorry, I couldn't find ${query} on the map.`, settings.voice.id, settings.speed);
+    },
+    [findPlace, settings.voice.id, settings.speed],
+  );
+
+  const commandContext = (): CommandContext => ({
+    place: story?.place || place,
+    narration: narrationRef.current.state,
+    era: settings.era,
+    tone: settings.tone,
+    voices: VOICES.map((v) => v.name),
+    story: story ? { title: story.title, date: story.date, year: story.year, place: story.place, text: story.paragraphs.join(' ') } : null,
+    choices: choices?.items.map((c) => `${c.title} (${c.year})`),
+  });
+
+  // Questions to the narrator: the story pauses while the historian answers, then carries on.
+  const resumeAfterAsk = useRef(false);
+  const conversation = useConversation({
+    story,
+    voiceId: narrator.id,
+    speed: settings.speed,
+    getContext: commandContext,
+    onStart: () => {
+      const n = narrationRef.current;
+      if (n.state === 'playing') {
+        resumeAfterAsk.current = true;
+        void n.narrator?.pause();
+      }
+    },
+    onEnd: () => {
+      const n = narrationRef.current;
+      if (resumeAfterAsk.current && n.state === 'paused') void n.narrator?.resume();
+      resumeAfterAsk.current = false;
+    },
+  });
+  const { record } = conversation;
 
   const execute = useCallback(
     (cmd: Command) => {
@@ -167,8 +333,13 @@ function Experience() {
           if (cmd.place) void goTo(cmd.place);
           break;
         case 'another_story':
-          if (pin) void tellStory(pin);
+          another();
           break;
+        case 'choose': {
+          const c = cmd.choice ? choices?.items[cmd.choice - 1] : undefined;
+          if (c) choose(c);
+          break;
+        }
         case 'surprise':
           surprise();
           break;
@@ -176,7 +347,11 @@ function Experience() {
         case 'set_tone': {
           const patch = cmd.action === 'set_era' ? { era: cmd.era ?? settings.era } : { tone: cmd.tone ?? settings.tone };
           setSettings((s) => ({ ...s, ...patch }));
-          if (cmd.retell && pin) void tellStory(pin, { fresh: true, ...patch });
+          if (cmd.retell && pin) {
+            // A new era needs a new list; a new mood retells the current story.
+            if ('era' in patch) void explore(pin, { era: patch.era, name: place });
+            else if (story) void tellStory(pin, { tone: patch.tone, name: place, focus: { title: story.title, year: story.year, lat: pin.lat, lng: pin.lng } });
+          }
           break;
         }
         case 'set_voice': {
@@ -198,23 +373,22 @@ function Experience() {
           resumeAfterVoice.current = false;
           close();
           break;
-        // 'ask' and 'unclear': the spoken reply is the whole response.
+        case 'ask':
+          record({ q: cmd.question || cmd.transcript, a: cmd.reply, sources: cmd.sources, authority: cmd.authority });
+          break;
+        // 'unclear': the spoken reply is the whole response.
       }
       if (['go_to', 'another_story', 'surprise'].includes(cmd.action) || (cmd.retell && pin)) resumeAfterVoice.current = false;
     },
-    [goTo, pin, tellStory, surprise, settings.era, settings.tone, close],
+    [goTo, pin, place, story, choices, tellStory, explore, choose, another, surprise, settings.era, settings.tone, close, record],
   );
 
   const voice = useVoice({
     voiceId: narrator.id,
     speed: settings.speed,
     getContext: () => ({
-      place: story?.place || place,
-      narration: narrationRef.current.state,
-      era: settings.era,
-      tone: settings.tone,
-      voices: VOICES.map((v) => v.name),
-      story: story ? { title: story.title, date: story.date, year: story.year, place: story.place, text: story.paragraphs.join(' ') } : null,
+      ...commandContext(),
+      history: conversation.turns.filter((t) => t.a).slice(-4).map((t) => ({ q: t.q, a: t.a! })),
     }),
     execute,
     onListen: () => {
@@ -242,7 +416,7 @@ function Experience() {
           close();
         }
       }
-      if (e.key === 'b' || e.key === 'B') {
+      if ((e.key === 'b' || e.key === 'B') && pin && settings.historianBook) {
         e.preventDefault();
         setShowTome((s) => !s);
       }
@@ -257,7 +431,7 @@ function Experience() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [close, narration, story, voice, showTome]);
+  }, [close, narration, story, voice, showTome, pin, settings.historianBook]);
 
   const panelOpen = !!pin;
 
@@ -267,11 +441,11 @@ function Experience() {
         pin={pin}
         story={story}
         loading={loading}
-        onDrop={(p) => void tellStory(p, { fresh: true })}
+        onDrop={(p) => void explore(p, { fresh: true })}
         onEcho={(e) => void tellStory({ lat: e.lat, lng: e.lng }, { focus: e })}
       />
       <div className="vignette pointer-events-none absolute inset-0" />
-      <TopBar settings={settings} onChange={setSettings} onOpenTome={() => setShowTome(true)} />
+      <TopBar settings={settings} onChange={setSettings} onSearch={findPlace} onPick={(p, name) => void explore(p, { fresh: true, name })} onOpenTome={pin && settings.historianBook ? () => setShowTome(true) : undefined} />
       <VoiceToast voice={voice} />
 
       <HistorianOpening
@@ -279,14 +453,19 @@ function Experience() {
         loading={loading}
         place={place}
         isOpen={showTome}
+        error={error}
+        voice={narrator}
+        voiceReady={narratorReady}
+        narration={narration}
+        voiceControl={voice}
+        conversation={conversation}
+        choices={choices}
+        onChoose={choose}
+        scene={scene}
+        prologue={prologue?.url ?? null}
         onClose={() => setShowTome(false)}
-        onStartNarration={() => {
-          setShowTome(false);
-          if (narration.state === 'paused' || narration.state === 'idle') {
-            narration.toggle();
-          }
-        }}
-        isNarrating={narration.state === 'playing'}
+        onBookOpen={setBookOpen}
+        onAnother={another}
       />
 
       <AnimatePresence>
@@ -300,11 +479,18 @@ function Experience() {
             voice={narrator}
             narration={narration}
             voiceControl={voice}
+            conversation={conversation}
             onClose={close}
-            onAnother={() => pin && void tellStory(pin)}
+            onAnother={another}
             onEcho={(e) => void tellStory({ lat: e.lat, lng: e.lng }, { focus: e })}
-            onRetry={() => lastQuery.current && void tellStory(lastQuery.current.pin, { focus: lastQuery.current.focus })}
-            onOpenTome={() => setShowTome(true)}
+            choices={choices}
+            onChoose={choose}
+            onRetry={() => {
+              const q = lastQuery.current;
+              if (q?.focus) void tellStory(q.pin, { focus: q.focus, name: place });
+              else if (q) void explore(q.pin, { name: place });
+            }}
+            onOpenTome={settings.historianBook ? () => setShowTome(true) : undefined}
           />
         )}
       </AnimatePresence>
@@ -322,7 +508,7 @@ function Experience() {
               <MicButton voice={voice} />
               <span className="text-sm text-white/80">
                 <span className="hidden sm:inline">
-                  Tap the mic and name a city, <span className="text-white/50">or drop a pin on the map</span>
+                  Tap the mic and name a city, <span className="text-white/50">type one above, or drop a pin</span>
                 </span>
                 <span className="sm:hidden">Tap the mic and name a city</span>
               </span>

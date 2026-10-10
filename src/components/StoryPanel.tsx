@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { formatYear, type NearbyEcho, type Story } from '../lib/api';
+import { formatYear, type NearbyEcho, type Story, type StoryChoice } from '../lib/api';
 import type { Narration } from '../lib/useNarration';
 import type { Voice } from '../lib/voices';
+import type { Conversation } from '../lib/useConversation';
 import type { VoiceControl } from '../lib/useVoice';
+import { AskHistorian } from './AskHistorian';
+import { StoryChoices } from './StoryChoices';
 import { AuthorityBanner, FactList, SourceList } from './Authority';
 import { MicButton } from './Voice';
 import { Waveform } from './Waveform';
@@ -16,6 +19,10 @@ interface Props {
   voice: Voice;
   narration: Narration;
   voiceControl: VoiceControl;
+  conversation: Conversation;
+  /** Stories offered for this place, before one is chosen. */
+  choices: { items: StoryChoice[]; loading: boolean } | null;
+  onChoose: (c: StoryChoice) => void;
   onClose: () => void;
   onAnother: () => void;
   onEcho: (e: NearbyEcho) => void;
@@ -44,7 +51,15 @@ export function StoryPanel(props: Props) {
           <path d="M1 1l12 12M13 1L1 13" />
         </svg>
       </button>
-      {error ? <ErrorState {...props} /> : loading || !story ? <LoadingState place={props.place} onOpenTome={props.onOpenTome} /> : <StoryView {...props} story={story} />}
+      {error ? (
+        <ErrorState {...props} />
+      ) : story && !loading ? (
+        <StoryView {...props} story={story} />
+      ) : props.choices && !props.choices.loading && !loading ? (
+        <ChoicesView place={props.place} items={props.choices.items} onChoose={props.onChoose} />
+      ) : (
+        <LoadingState place={props.place} onOpenTome={props.onOpenTome} />
+      )}
     </motion.aside>
   );
 }
@@ -96,6 +111,19 @@ function LoadingState({ place, onOpenTome }: { place: string; onOpenTome?: () =>
   );
 }
 
+function ChoicesView({ place, items, onChoose }: { place: string; items: StoryChoice[]; onChoose: (c: StoryChoice) => void }) {
+  return (
+    <div className="flex-1 overflow-y-auto p-7 pt-8">
+      <p className="eyebrow">Choose a story</p>
+      <h2 className="mt-1 pr-10 font-display text-2xl leading-tight text-white">Tales of {place.split(',')[0] || 'this place'}</h2>
+      <p className="mt-1 text-sm text-white/50">Tap one, or say “the second one”.</p>
+      <div className="mt-5">
+        <StoryChoices items={items} onChoose={onChoose} />
+      </div>
+    </div>
+  );
+}
+
 function ErrorState({ error, onRetry }: Props) {
   return (
     <div className="flex flex-1 flex-col items-start gap-4 p-7 pt-10">
@@ -108,7 +136,7 @@ function ErrorState({ error, onRetry }: Props) {
   );
 }
 
-function StoryView({ story, voice, narration, voiceControl, onAnother, onEcho, onOpenTome }: Props & { story: Story }) {
+function StoryView({ story, voice, narration, voiceControl, conversation, onAnother, onEcho, onOpenTome }: Props & { story: Story }) {
   const { state, activeWord } = narration;
   const scrollRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef<HTMLSpanElement>(null);
@@ -180,6 +208,13 @@ function StoryView({ story, voice, narration, voiceControl, onAnother, onEcho, o
               </p>
             ))}
           </motion.div>
+
+          <motion.section variants={fadeUp} className="mt-8">
+            <h3 className="eyebrow">Ask the historian</h3>
+            <div className="mt-3">
+              <AskHistorian conversation={conversation} voiceControl={voiceControl} narrator={voice.name} />
+            </div>
+          </motion.section>
 
           {story.facts.length > 0 && (
             <motion.section variants={fadeUp} className="mt-8">

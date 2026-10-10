@@ -24,8 +24,9 @@ export function Waveform({ analyser, active }: { analyser: AnalyserNode | null; 
       ctx.clearRect(0, 0, w, h);
       if (analyser) analyser.getByteFrequencyData(data);
       t += 0.04;
-      const gap = 3;
-      const bw = (w - gap * (BARS - 1)) / BARS;
+      // Narrow players (phones) get thinner gaps so bars never shrink below a pixel.
+      const gap = Math.min(3, Math.max(0, (w - BARS) / (BARS - 1)));
+      const bw = Math.max(1, (w - gap * (BARS - 1)) / BARS);
       for (let i = 0; i < BARS; i++) {
         const bin = Math.floor(2 + (i / BARS) ** 1.4 * 60);
         const live = analyser && active ? data[bin] / 255 : 0;
