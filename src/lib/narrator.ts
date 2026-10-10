@@ -151,7 +151,7 @@ export class Narrator {
   }
 
   async pause() {
-    if (this.state !== 'playing') return;
+    if (this.state !== 'playing' && this.state !== 'loading') return;
     clearTimeout(this.endTimer);
     await this.ctx.suspend();
     this.set('paused');

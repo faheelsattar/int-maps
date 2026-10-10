@@ -224,6 +224,86 @@ body,
   }
 }
 
+@layer components {
+  /* Cinema mode */
+  .kb {
+    position: absolute;
+    inset: -4%;
+    animation: 24s linear forwards;
+    will-change: transform;
+  }
+  .kb-0 { animation-name: kb0; }
+  .kb-1 { animation-name: kb1; }
+  .kb-2 { animation-name: kb2; }
+  .kb-3 { animation-name: kb3; }
+
+  .cinema-placeholder {
+    background:
+      radial-gradient(ellipse at 30% 40%, rgba(242, 189, 92, 0.18), transparent 60%),
+      radial-gradient(ellipse at 70% 70%, rgba(125, 150, 252, 0.12), transparent 60%),
+      #07080b;
+    animation: breathe 6s ease-in-out infinite alternate;
+  }
+  .cinema-vignette {
+    background:
+      radial-gradient(ellipse at center, transparent 50%, rgba(0, 0, 0, 0.65) 100%),
+      linear-gradient(to top, rgba(0, 0, 0, 0.75), transparent 38%);
+  }
+  .grain {
+    opacity: 0.09;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    animation: grain 0.8s steps(4) infinite;
+  }
+  .cinema-btn {
+    display: grid;
+    place-items: center;
+    height: 36px;
+    width: 36px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(10px);
+    transition: background 0.15s;
+  }
+  .cinema-btn:hover {
+    background: rgba(255, 255, 255, 0.14);
+  }
+  .watch-card {
+    position: relative;
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 14px;
+    overflow: hidden;
+    border-radius: 18px;
+    padding: 14px 16px;
+    text-align: left;
+    border: 1px solid rgba(253, 224, 160, 0.25);
+    background:
+      linear-gradient(120deg, rgba(253, 224, 160, 0.14), rgba(125, 150, 252, 0.1)),
+      rgba(255, 255, 255, 0.02);
+    transition: transform 0.2s, border-color 0.2s;
+  }
+  .watch-card:hover {
+    transform: translateY(-1px);
+    border-color: rgba(253, 224, 160, 0.5);
+  }
+}
+
+@keyframes kb0 { from { transform: scale(1.02) translate(0, 0); } to { transform: scale(1.14) translate(-2%, -1.5%); } }
+@keyframes kb1 { from { transform: scale(1.14) translate(2%, 1%); } to { transform: scale(1.03) translate(-1%, 0); } }
+@keyframes kb2 { from { transform: scale(1.04) translate(-2%, 1%); } to { transform: scale(1.15) translate(2%, -1%); } }
+@keyframes kb3 { from { transform: scale(1.12) translate(0, -2%); } to { transform: scale(1.02) translate(0, 1.5%); } }
+@keyframes breathe { from { opacity: 0.7; } to { opacity: 1; } }
+@keyframes grain {
+  0% { transform: translate(0, 0); }
+  25% { transform: translate(-3%, 2%); }
+  50% { transform: translate(2%, -3%); }
+  75% { transform: translate(-2%, -2%); }
+}
+
 @keyframes shimmer {
   from {
     background-position: 200% 0;
@@ -247,7 +327,9 @@ body,
 @media (prefers-reduced-motion: reduce) {
   .pin-ring,
   .beacon,
-  .shimmer {
+  .shimmer,
+  .kb,
+  .grain {
     animation: none;
   }
 }

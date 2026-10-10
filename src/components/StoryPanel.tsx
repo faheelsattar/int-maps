@@ -16,6 +16,8 @@ interface Props {
   onAnother: () => void;
   onEcho: (e: NearbyEcho) => void;
   onRetry: () => void;
+  onWatch: () => void;
+  thumbnail?: string;
 }
 
 export function StoryPanel(props: Props) {
@@ -94,7 +96,7 @@ function ErrorState({ error, onRetry }: Props) {
   );
 }
 
-function StoryView({ story, voice, narration, onAnother, onEcho }: Props & { story: Story }) {
+function StoryView({ story, voice, narration, onAnother, onEcho, onWatch, thumbnail }: Props & { story: Story }) {
   const { state, activeWord } = narration;
   const scrollRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef<HTMLSpanElement>(null);
@@ -135,6 +137,20 @@ function StoryView({ story, voice, narration, onAnother, onEcho }: Props & { sto
               “{story.hook}”
             </motion.p>
           )}
+
+          <motion.button variants={fadeUp} onClick={onWatch} className="watch-card group mt-5">
+            <span className="relative grid h-14 w-20 shrink-0 place-items-center overflow-hidden rounded-xl bg-black/40">
+              {thumbnail && <img src={thumbnail} alt="" className="absolute inset-0 h-full w-full object-cover opacity-80" />}
+              <span className="relative grid h-8 w-8 place-items-center rounded-full bg-white/90 text-[#1a1408] shadow-lg transition group-hover:scale-110">
+                <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11a.8.8 0 0 0 1.2.7l9-5.5a.8.8 0 0 0 0-1.4l-9-5.5A.8.8 0 0 0 4 2.5Z" /></svg>
+              </span>
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold text-white">Watch it come alive</span>
+              <span className="block text-xs text-white/55">Painted by Nano Banana, animated by Gemini Omni</span>
+            </span>
+            <span className="text-amber-100/60 transition group-hover:translate-x-0.5">→</span>
+          </motion.button>
 
           <motion.div variants={fadeUp} className="mt-6 space-y-4 text-[15.5px] leading-[1.75]">
             {story.paragraphs.map((p, pi) => (

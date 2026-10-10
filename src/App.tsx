@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { APIProvider, useMap, useMapsLibrary } from '@vis.gl/react-google-maps';
 import { AnimatePresence, motion } from 'framer-motion';
+import { Cinema } from './components/Cinema';
 import { MapView } from './components/MapView';
 import { StoryPanel } from './components/StoryPanel';
 import { TopBar, type Settings } from './components/TopBar';
@@ -8,6 +9,7 @@ import { fetchStory, type LatLng, type NearbyEcho, type Story } from './lib/api'
 import { flyTo } from './lib/flyTo';
 import { unlockAudio } from './lib/narrator';
 import { useNarration } from './lib/useNarration';
+import { useScenes } from './lib/useScenes';
 import { DEFAULT_VOICE } from './lib/voices';
 
 const MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
@@ -52,6 +54,8 @@ function Experience() {
   const lastQuery = useRef<{ pin: LatLng; focus?: NearbyEcho } | null>(null);
 
   const narration = useNarration(story?.paragraphs ?? null, settings.voice.id, settings.speed);
+  const scenes = useScenes(story);
+  const [cinema, setCinema] = useState(false);
 
   const reverseGeocode = useCallback(
     async (p: LatLng) => {
@@ -81,6 +85,7 @@ function Experience() {
       if (opts.fresh) told.current = [];
 
       setPin(p);
+      setCinema(false);
       setStory(null);
       setError('');
       setLoading(true);
@@ -118,6 +123,7 @@ function Experience() {
   const close = useCallback(() => {
     request.current?.abort();
     setPin(null);
+    setCinema(false);
     setStory(null);
     setLoading(false);
     setError('');
@@ -133,7 +139,7 @@ function Experience() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement).closest('input, textarea')) return;
-      if (e.key === 'Escape') close();
+      if (e.key === 'Escape') cinema ? setCinema(false) : close();
       if (e.key === ' ' && story) {
         e.preventDefault();
         narration.toggle();
@@ -141,7 +147,7 @@ function Experience() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [close, narration, story]);
+  }, [close, narration, story, cinema]);
 
   const panelOpen = !!pin;
 
@@ -171,7 +177,15 @@ function Experience() {
             onAnother={() => pin && void tellStory(pin)}
             onEcho={(e) => void tellStory({ lat: e.lat, lng: e.lng }, { focus: e })}
             onRetry={() => lastQuery.current && void tellStory(lastQuery.current.pin, { focus: lastQuery.current.focus })}
+            onWatch={() => setCinema(true)}
+            thumbnail={scenes.scenes[0]?.image}
           />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {cinema && story && (
+          <Cinema key="cinema" story={story} scenes={scenes} narration={narration} voice={settings.voice} onClose={() => setCinema(false)} />
         )}
       </AnimatePresence>
 

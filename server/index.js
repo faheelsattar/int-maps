@@ -4,6 +4,7 @@ import path from 'node:path';
 import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { GoogleGenAI, ThinkingLevel } from '@google/genai';
+import { registerSceneRoutes } from './scenes.js';
 
 const PORT = Number(process.env.PORT || 8787);
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
@@ -61,6 +62,8 @@ Reply with ONLY a JSON object (no code fences) of this exact shape:
   "hook": "one-sentence teaser, max 18 words",
   "paragraphs": ["...", "..."],
   "facts": ["3 short verified facts, each max 16 words"],
+  "artStyle": "one visual art style that suits the era and place, e.g. 'Edwardian-era photochrome with soft film grain' or 'Byzantine mosaic-inspired painterly illustration'",
+  "scenes": ["one cinematic visual description PER PARAGRAPH (same count as paragraphs): setting, time of day, light, period-accurate people, clothing and objects, camera framing, and one subtle motion to animate. Max 60 words each. No text or signage in the image. Depict tragedy with restraint, no gore."],
   "nearby": [
     {"title": "another true event near the pin, max 6 words", "year": 1066, "lat": 0.0, "lng": 0.0}
   ]
@@ -147,6 +150,8 @@ app.post('/api/story', async (req, res) => {
         hook: String(data.hook ?? ''),
         paragraphs,
         facts: (data.facts ?? []).map(String).slice(0, 4),
+        artStyle: String(data.artStyle ?? 'cinematic painterly historical illustration'),
+        scenes: paragraphs.map((p, i) => String(data.scenes?.[i] ?? p)),
         nearby: (data.nearby ?? [])
           .filter((n) => Number.isFinite(Number(n.lat)) && Number.isFinite(Number(n.lng)))
           .map((n) => ({ title: String(n.title), year: num(n.year, null), lat: Number(n.lat), lng: Number(n.lng) }))
@@ -201,6 +206,8 @@ app.post('/api/narrate', async (req, res) => {
   }
 });
 
+registerSceneRoutes(app, ai);
+
 app.get('/api/health', (_req, res) =>
   res.json({ ok: true, model: GEMINI_MODEL, gemini: !!process.env.GEMINI_API_KEY, gradium: !!process.env.GRADIUM_API_KEY }),
 );
@@ -208,7 +215,7 @@ app.get('/api/health', (_req, res) =>
 if (process.env.NODE_ENV === 'production') {
   const dist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../dist');
   app.use(express.static(dist));
-  app.get(/^(?!\/api).*/, (_req, res) => res.sendFile(path.join(dist, 'index.html')));
+  app.get(/^(?!\/(api|media)\/).*/, (_req, res) => res.sendFile(path.join(dist, 'index.html')));
 }
 
 app.listen(PORT, () => console.log(`🗺️  Echoes API on http://localhost:${PORT} (model: ${GEMINI_MODEL})`));

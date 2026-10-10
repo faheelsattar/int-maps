@@ -24,6 +24,8 @@ export interface Story {
   facts: string[];
   nearby: NearbyEcho[];
   sources: { uri: string; title: string }[];
+  artStyle: string;
+  scenes: string[];
 }
 
 export async function fetchStory(
