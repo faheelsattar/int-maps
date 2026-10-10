@@ -5,6 +5,8 @@ import { VOICES, type Voice } from '../lib/voices';
 
 export interface Settings {
   voice: Voice;
+  /** Narrate each story in the accent of its place, where Gradium has one. */
+  localAccent: boolean;
   era: Era;
   tone: Tone;
   speed: number;
@@ -53,6 +55,7 @@ export function TopBar({ settings, onChange }: { settings: Settings; onChange: (
         <button onClick={() => setOpen((o) => !o)} className="glass flex items-center gap-2.5 rounded-2xl px-3.5 py-2.5 text-sm text-white/85 transition hover:bg-white/[0.07]">
           <span className="text-lg leading-none">{settings.voice.flag}</span>
           <span className="font-medium">{settings.voice.name}</span>
+          {settings.localAccent && <span title="Local accent on" className="text-sm leading-none">🌍</span>}
           <span className="hidden text-white/35 sm:inline">·</span>
           <span className="hidden text-white/60 sm:inline">{tone.icon} {tone.label}</span>
           <span className="hidden text-white/35 md:inline">·</span>
@@ -72,7 +75,22 @@ export function TopBar({ settings, onChange }: { settings: Settings; onChange: (
               className="panel absolute right-0 mt-2 w-[min(360px,calc(100vw-24px))] origin-top-right rounded-3xl p-5"
             >
               <p className="eyebrow">Narrator</p>
-              <div className="mt-3 grid gap-1.5">
+              <button
+                onClick={() => set({ localAccent: !settings.localAccent })}
+                role="switch"
+                aria-checked={settings.localAccent}
+                className="mt-3 flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition hover:bg-white/5"
+              >
+                <span className="text-xl">🌍</span>
+                <span className="flex-1">
+                  <span className="block text-sm text-white">Local accent</span>
+                  <span className="block text-xs text-white/45">Stories from France, Mexico, Brazil… are told in that accent. Elsewhere, your narrator.</span>
+                </span>
+                <span className={`relative h-5 w-9 shrink-0 rounded-full transition ${settings.localAccent ? 'bg-amber-300' : 'bg-white/15'}`}>
+                  <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${settings.localAccent ? 'left-[18px]' : 'left-0.5'}`} />
+                </span>
+              </button>
+              <div className="mt-1.5 grid gap-1.5">
                 {VOICES.map((v) => (
                   <button
                     key={v.id}
