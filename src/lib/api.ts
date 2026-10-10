@@ -1,5 +1,11 @@
 export type Era = 'any' | 'ancient' | 'medieval' | 'early' | 'modern';
 export type Tone = 'epic' | 'mystery' | 'heartfelt' | 'witty';
+export type Pick = 'famous' | 'hidden';
+
+export interface Fact {
+  text: string;
+  status: 'confirmed' | 'corrected' | 'unchecked';
+}
 
 export interface LatLng {
   lat: number;
@@ -21,13 +27,14 @@ export interface Story {
   distanceKm: number | null;
   hook: string;
   paragraphs: string[];
-  facts: string[];
+  facts: Fact[];
   nearby: NearbyEcho[];
   sources: { uri: string; title: string }[];
+  factCheck: { checked: boolean; corrections: string[] };
 }
 
 export async function fetchStory(
-  body: LatLng & { place?: string; era: Era; tone: Tone; exclude?: string[]; focus?: string },
+  body: LatLng & { place?: string; era: Era; tone: Tone; pick: Pick; exclude?: string[]; focus?: string },
   signal?: AbortSignal,
 ): Promise<Story> {
   const res = await fetch('/api/story', {
