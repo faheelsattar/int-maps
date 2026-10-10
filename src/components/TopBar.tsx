@@ -1,12 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import type { Era, Pick, Tone } from '../lib/api';
+import type { Era, LangPref, Mode, Pick, Tone } from '../lib/api';
+import type { Theme } from '../lib/mapStyle';
+import { SearchBar, type SearchResult } from './SearchBar';
 import { VOICES, type Voice } from '../lib/voices';
 
 export interface Settings {
   voice: Voice;
   era: Era;
   pick: Pick;
+  mode: Mode;
+  lang: LangPref;
   tone: Tone;
   speed: number;
 }
@@ -31,7 +35,16 @@ const TONES: { id: Tone; label: string; icon: string }[] = [
   { id: 'witty', label: 'Witty', icon: '🎩' },
 ];
 
-export function TopBar({ settings, onChange }: { settings: Settings; onChange: (s: Settings) => void }) {
+interface TopBarProps {
+  settings: Settings;
+  onChange: (s: Settings) => void;
+  theme: Theme;
+  onTheme: (t: Theme) => void;
+  onSearch: (r: SearchResult) => void;
+  onJourney: (query: string) => void;
+}
+
+export function TopBar({ settings, onChange, theme, onTheme, onSearch, onJourney }: TopBarProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -48,25 +61,41 @@ export function TopBar({ settings, onChange }: { settings: Settings; onChange: (
 
   return (
     <header className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-start justify-between gap-3 p-3 md:p-4">
-      <div className="glass pointer-events-auto flex items-center gap-3 rounded-2xl px-4 py-2.5">
+      <div className="glass pointer-events-auto flex h-[42px] shrink-0 items-center gap-3 rounded-2xl px-2.5 md:h-auto md:px-4 md:py-2.5">
         <Logo />
-        <div className="leading-tight">
-          <h1 className="font-display text-xl tracking-tight text-white">Echoes</h1>
-          <p className="hidden text-[11px] text-white/45 sm:block">Every place has a story</p>
+        <div className="hidden leading-tight md:block">
+          <h1 className="font-display text-xl tracking-tight text-ink">Echoes</h1>
+          <p className="hidden text-[11px] text-ink/45 sm:block">Every place has a story</p>
         </div>
       </div>
 
-      <div ref={ref} className="pointer-events-auto relative">
-        <button onClick={() => setOpen((o) => !o)} className="glass flex items-center gap-2.5 rounded-2xl px-3.5 py-2.5 text-sm text-white/85 transition hover:bg-white/[0.07]">
+      <div className="flex min-w-0 flex-1 justify-center md:pt-1">
+        <SearchBar onSelect={onSearch} onJourney={onJourney} />
+      </div>
+
+      <div ref={ref} className="pointer-events-auto relative flex shrink-0 items-start gap-2">
+        <button
+          onClick={() => onTheme(theme === 'light' ? 'dark' : 'light')}
+          className="glass grid h-[42px] w-[42px] place-items-center rounded-2xl text-ink/75 transition hover:text-ink"
+          aria-label={theme === 'light' ? 'Switch to night map' : 'Switch to day map'}
+          title={theme === 'light' ? 'Night map' : 'Day map'}
+        >
+          {theme === 'light' ? (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" /></svg>
+          ) : (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>
+          )}
+        </button>
+        <button onClick={() => setOpen((o) => !o)} className="glass flex items-center gap-2.5 rounded-2xl px-3.5 py-2.5 text-sm text-ink/85 transition hover:bg-ink/[0.07]">
           <span className="text-lg leading-none">{settings.voice.flag}</span>
           <span className="font-medium">{settings.voice.name}</span>
-          <span className="hidden text-white/35 sm:inline">·</span>
-          <span className="hidden text-white/60 sm:inline">{pick.icon} {pick.label}</span>
-          <span className="hidden text-white/35 sm:inline">·</span>
-          <span className="hidden text-white/60 sm:inline">{tone.icon} {tone.label}</span>
-          <span className="hidden text-white/35 md:inline">·</span>
-          <span className="hidden text-white/60 md:inline">{era.label}</span>
-          <svg width="10" height="10" viewBox="0 0 10 10" className={`ml-1 text-white/40 transition ${open ? 'rotate-180' : ''}`}>
+          <span className="hidden text-ink/35 sm:inline">·</span>
+          <span className="hidden text-ink/60 sm:inline">{pick.icon} {pick.label}</span>
+          <span className="hidden text-ink/35 sm:inline">·</span>
+          <span className="hidden text-ink/60 sm:inline">{tone.icon} {tone.label}</span>
+          <span className="hidden text-ink/35 md:inline">·</span>
+          <span className="hidden text-ink/60 md:inline">{era.label}</span>
+          <svg width="10" height="10" viewBox="0 0 10 10" className={`ml-1 text-ink/40 transition ${open ? 'rotate-180' : ''}`}>
             <path d="M1 3l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
           </svg>
         </button>
@@ -78,7 +107,7 @@ export function TopBar({ settings, onChange }: { settings: Settings; onChange: (
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -8, scale: 0.98 }}
               transition={{ duration: 0.18 }}
-              className="panel absolute right-0 mt-2 w-[min(360px,calc(100vw-24px))] origin-top-right rounded-3xl p-5"
+              className="panel absolute right-0 top-full mt-2 max-h-[calc(100vh-90px)] w-[min(360px,calc(100vw-24px))] origin-top-right overflow-y-auto rounded-3xl p-5"
             >
               <p className="eyebrow">Narrator</p>
               <div className="mt-3 grid gap-1.5">
@@ -87,17 +116,53 @@ export function TopBar({ settings, onChange }: { settings: Settings; onChange: (
                     key={v.id}
                     onClick={() => set({ voice: v })}
                     className={`flex items-center gap-3 rounded-xl px-3 py-2 text-left transition ${
-                      v.id === settings.voice.id ? 'bg-amber-200/10 ring-1 ring-amber-200/40' : 'hover:bg-white/5'
+                      v.id === settings.voice.id ? 'bg-accent/10 ring-1 ring-accent/40' : 'hover:bg-ink/5'
                     }`}
                   >
                     <span className="text-xl">{v.flag}</span>
                     <span className="flex-1">
-                      <span className="block text-sm text-white">
-                        {v.name} <span className="text-white/40">· {v.accent}</span>
+                      <span className="block text-sm text-ink">
+                        {v.name} <span className="text-ink/40">· {v.accent}</span>
                       </span>
-                      <span className="block text-xs text-white/45">{v.blurb}</span>
+                      <span className="block text-xs text-ink/45">{v.blurb}</span>
                     </span>
-                    {v.id === settings.voice.id && <span className="text-amber-200">●</span>}
+                    {v.id === settings.voice.id && <span className="text-accent">●</span>}
+                  </button>
+                ))}
+              </div>
+
+              <p className="eyebrow mt-5">Storyteller</p>
+              <div className="mt-3 grid grid-cols-2 gap-1.5">
+                {(
+                  [
+                    { id: 'narrator', icon: '🎙', label: 'Narrator', hint: 'Your chosen voice' },
+                    { id: 'eyewitness', icon: '🎭', label: 'Eyewitness', hint: 'Someone who was there' },
+                  ] as const
+                ).map((m) => (
+                  <button key={m.id} onClick={() => set({ mode: m.id })} className={`seg !flex-row !justify-start gap-2.5 !px-3 text-left ${m.id === settings.mode ? 'seg-on' : ''}`}>
+                    <span className="text-base">{m.icon}</span>
+                    <span className="leading-tight">
+                      <span className="block text-[12.5px] font-medium">{m.label}</span>
+                      <span className="block text-[11px] opacity-60">{m.hint}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              <p className="eyebrow mt-5">Language</p>
+              <div className="mt-3 grid grid-cols-2 gap-1.5">
+                {(
+                  [
+                    { id: 'en', icon: '🇬🇧', label: 'English', hint: 'Always' },
+                    { id: 'local', icon: '🌍', label: 'Local', hint: 'FR · DE · ES · PT voices' },
+                  ] as const
+                ).map((m) => (
+                  <button key={m.id} onClick={() => set({ lang: m.id })} className={`seg !flex-row !justify-start gap-2.5 !px-3 text-left ${m.id === settings.lang ? 'seg-on' : ''}`}>
+                    <span className="text-base">{m.icon}</span>
+                    <span className="leading-tight">
+                      <span className="block text-[12.5px] font-medium">{m.label}</span>
+                      <span className="block text-[11px] opacity-60">{m.hint}</span>
+                    </span>
                   </button>
                 ))}
               </div>
@@ -128,7 +193,7 @@ export function TopBar({ settings, onChange }: { settings: Settings; onChange: (
               <p className="eyebrow mt-5">Era</p>
               <div className="mt-3 flex flex-wrap gap-1.5">
                 {ERAS.map((e) => (
-                  <button key={e.id} onClick={() => set({ era: e.id })} className={`chip ${e.id === settings.era ? 'chip-amber' : 'hover:bg-white/10'}`}>
+                  <button key={e.id} onClick={() => set({ era: e.id })} className={`chip ${e.id === settings.era ? 'chip-accent' : 'hover:bg-ink/10'}`}>
                     {e.label}
                   </button>
                 ))}
@@ -136,7 +201,7 @@ export function TopBar({ settings, onChange }: { settings: Settings; onChange: (
 
               <div className="mt-5 flex items-center justify-between">
                 <p className="eyebrow">Pace</p>
-                <span className="text-xs text-white/45">{settings.speed > 0.3 ? 'Slow & dramatic' : settings.speed < -0.3 ? 'Brisk' : 'Natural'}</span>
+                <span className="text-xs text-ink/45">{settings.speed > 0.3 ? 'Slow & dramatic' : settings.speed < -0.3 ? 'Brisk' : 'Natural'}</span>
               </div>
               <input
                 type="range"
@@ -159,9 +224,9 @@ export function TopBar({ settings, onChange }: { settings: Settings; onChange: (
 function Logo() {
   return (
     <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden>
-      <circle cx="16" cy="16" r="14.5" fill="none" stroke="#f6d08a" strokeOpacity=".25" />
-      <circle cx="16" cy="16" r="9.5" fill="none" stroke="#f6d08a" strokeOpacity=".5" />
-      <circle cx="16" cy="16" r="4.5" fill="#f6d08a" />
+      <circle cx="16" cy="16" r="14.5" fill="none" style={{ stroke: 'var(--accent)' }} strokeOpacity=".3" />
+      <circle cx="16" cy="16" r="9.5" fill="none" style={{ stroke: 'var(--accent)' }} strokeOpacity=".55" />
+      <circle cx="16" cy="16" r="4.5" style={{ fill: 'var(--accent)' }} />
     </svg>
   );
 }

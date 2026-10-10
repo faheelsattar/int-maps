@@ -12,6 +12,13 @@ export function Waveform({ analyser, active }: { analyser: AnalyserNode | null; 
     const BARS = 38;
     let raf = 0;
     let t = 0;
+    // Bar colours follow the theme's accent.
+    let colors = ['', ''];
+    const readColors = () => {
+      const cs = getComputedStyle(document.documentElement);
+      colors = [cs.getPropertyValue('--accent-2').trim(), cs.getPropertyValue('--accent').trim()];
+    };
+    readColors();
     const draw = () => {
       const dpr = window.devicePixelRatio || 1;
       const w = canvas.clientWidth;
@@ -24,6 +31,7 @@ export function Waveform({ analyser, active }: { analyser: AnalyserNode | null; 
       ctx.clearRect(0, 0, w, h);
       if (analyser) analyser.getByteFrequencyData(data);
       t += 0.04;
+      if (Math.round(t * 25) % 30 === 0) readColors();
       const gap = 3;
       const bw = (w - gap * (BARS - 1)) / BARS;
       for (let i = 0; i < BARS; i++) {
@@ -33,8 +41,8 @@ export function Waveform({ analyser, active }: { analyser: AnalyserNode | null; 
         const v = Math.max(idle, live);
         const bh = Math.max(3, v * h);
         const grad = ctx.createLinearGradient(0, (h - bh) / 2, 0, (h + bh) / 2);
-        grad.addColorStop(0, 'rgba(255,227,163,0.95)');
-        grad.addColorStop(1, 'rgba(224,165,72,0.55)');
+        grad.addColorStop(0, colors[0]);
+        grad.addColorStop(1, colors[1]);
         ctx.fillStyle = grad;
         ctx.beginPath();
         ctx.roundRect(i * (bw + gap), (h - bh) / 2, bw, bh, bw / 2);
