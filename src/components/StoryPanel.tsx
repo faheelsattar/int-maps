@@ -20,6 +20,7 @@ interface Props {
   onAnother: () => void;
   onEcho: (e: NearbyEcho) => void;
   onRetry: () => void;
+  onOpenTome?: () => void;
 }
 
 export function StoryPanel(props: Props) {
@@ -43,7 +44,7 @@ export function StoryPanel(props: Props) {
           <path d="M1 1l12 12M13 1L1 13" />
         </svg>
       </button>
-      {error ? <ErrorState {...props} /> : loading || !story ? <LoadingState place={props.place} /> : <StoryView {...props} story={story} />}
+      {error ? <ErrorState {...props} /> : loading || !story ? <LoadingState place={props.place} onOpenTome={props.onOpenTome} /> : <StoryView {...props} story={story} />}
     </motion.aside>
   );
 }
@@ -56,7 +57,7 @@ const LOADING_LINES = [
   'Separating legend from fact…',
 ];
 
-function LoadingState({ place }: { place: string }) {
+function LoadingState({ place, onOpenTome }: { place: string; onOpenTome?: () => void }) {
   const [line, setLine] = useState(0);
   const [year, setYear] = useState(1900);
   useEffect(() => {
@@ -68,7 +69,7 @@ function LoadingState({ place }: { place: string }) {
     };
   }, []);
   return (
-    <div className="flex flex-1 flex-col gap-6 p-7 pt-8">
+    <div className="flex flex-1 flex-col gap-5 p-7 pt-8">
       <div>
         <p className="eyebrow">Searching history near</p>
         <p className="mt-1 pr-10 text-sm text-white/70">{place || 'your pin'}</p>
@@ -77,6 +78,15 @@ function LoadingState({ place }: { place: string }) {
       <motion.p key={line} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="text-sm italic text-white/60">
         {LOADING_LINES[line]}
       </motion.p>
+      {onOpenTome && (
+        <button
+          onClick={onOpenTome}
+          className="inline-flex items-center gap-2 self-start rounded-xl border border-amber-300/30 bg-amber-400/10 px-3.5 py-1.5 text-xs font-medium text-amber-200 transition hover:bg-amber-400/20 active:scale-95"
+        >
+          <span>📖</span>
+          <span>Open Historian's Tome</span>
+        </button>
+      )}
       <div className="space-y-3">
         {[92, 100, 84, 96, 70].map((w, i) => (
           <div key={i} className="shimmer h-3 rounded-full" style={{ width: `${w}%`, animationDelay: `${i * 120}ms` }} />
@@ -98,7 +108,7 @@ function ErrorState({ error, onRetry }: Props) {
   );
 }
 
-function StoryView({ story, voice, narration, voiceControl, onAnother, onEcho }: Props & { story: Story }) {
+function StoryView({ story, voice, narration, voiceControl, onAnother, onEcho, onOpenTome }: Props & { story: Story }) {
   const { state, activeWord } = narration;
   const scrollRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef<HTMLSpanElement>(null);
@@ -123,6 +133,16 @@ function StoryView({ story, voice, narration, voiceControl, onAnother, onEcho }:
           <motion.div variants={fadeUp} className="flex flex-wrap items-center gap-2 pr-10">
             {story.year != null && <span className="chip chip-amber">{formatYear(story.year)}</span>}
             <span className="text-xs text-white/50">{story.date}</span>
+            {onOpenTome && (
+              <button
+                onClick={onOpenTome}
+                className="chip chip-amber ml-auto flex items-center gap-1.5 transition hover:brightness-110 active:scale-95"
+                title="Watch historian open book animation"
+              >
+                <span>📖</span>
+                <span>Open Tome</span>
+              </button>
+            )}
           </motion.div>
           <motion.h2 variants={fadeUp} className="mt-3 font-display text-[2rem] leading-[1.1] text-white">
             {story.title}

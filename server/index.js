@@ -8,6 +8,7 @@ import { assessAuthority, rateFacts, rateResearch, summarize } from './sources.j
 
 const PORT = Number(process.env.PORT || 8787);
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+const NANO_BANANA_MODEL = process.env.NANO_BANANA_MODEL || 'nano-banana-pro-preview';
 const GRADIUM_URL = process.env.GRADIUM_URL || 'https://api.gradium.ai/api/post/speech/tts';
 
 if (!process.env.GEMINI_API_KEY) console.warn('⚠️  GEMINI_API_KEY is not set');
@@ -431,8 +432,57 @@ app.post('/api/command', async (req, res) => {
   }
 });
 
+const illustrationCache = new Map();
+
+app.post('/api/illustrate', async (req, res) => {
+  const title = String(req.body?.title || '').trim().slice(0, 150);
+  const place = String(req.body?.place || '').trim().slice(0, 150);
+  const year = req.body?.year != null ? Number(req.body.year) : null;
+  const fact = String(req.body?.fact || '').trim().slice(0, 200);
+
+  if (!title && !place) {
+    return res.status(400).json({ error: 'title or place is required' });
+  }
+
+  const cacheKey = `${title.toLowerCase()}|${place.toLowerCase()}|${year}`;
+  if (illustrationCache.has(cacheKey)) {
+    return res.json({ imageUrl: illustrationCache.get(cacheKey), cached: true });
+  }
+
+  // Pre-cached Rome plate match
+  if (place.toLowerCase().includes('rome') || title.toLowerCase().includes('rome')) {
+    const romeUrl = '/assets/plate-rome.jpg';
+    illustrationCache.set(cacheKey, romeUrl);
+    return res.json({ imageUrl: romeUrl, cached: true });
+  }
+
+  try {
+    const prompt = `An antique archival book illustration plate, sepia etching and ink engraving with fine hatch lines, depicting: ${title} in ${place}${year ? ` (${year > 0 ? `${year} AD` : `${Math.abs(year)} BC`})` : ''}. ${fact ? `Historical context: ${fact}. ` : ''}Classical vintage vignette illustration for an ancient chronicle book, ornate sepia tone, detailed historical etching.`;
+
+    console.log(`[illustrate] Generating with ${NANO_BANANA_MODEL}: "${title}" (${place})`);
+    const response = await ai.models.generateContent({
+      model: NANO_BANANA_MODEL,
+      contents: prompt,
+    });
+
+    const part = response.candidates?.[0]?.content?.parts?.find((p) => p.inlineData);
+    if (!part?.inlineData?.data) {
+      throw new Error('No image returned by Nano Banana model');
+    }
+
+    const mimeType = part.inlineData.mimeType || 'image/jpeg';
+    const imageUrl = `data:${mimeType};base64,${part.inlineData.data}`;
+    illustrationCache.set(cacheKey, imageUrl);
+
+    res.json({ imageUrl, cached: false });
+  } catch (err) {
+    console.error('[illustrate] failed:', err.message);
+    res.status(502).json({ error: `Nano Banana: ${readable(err.message || 'Image generation failed')}` });
+  }
+});
+
 app.get('/api/health', (_req, res) =>
-  res.json({ ok: true, model: GEMINI_MODEL, gemini: !!process.env.GEMINI_API_KEY, gradium: !!process.env.GRADIUM_API_KEY }),
+  res.json({ ok: true, model: GEMINI_MODEL, nanoBanana: NANO_BANANA_MODEL, gemini: !!process.env.GEMINI_API_KEY, gradium: !!process.env.GRADIUM_API_KEY }),
 );
 
 if (process.env.NODE_ENV === 'production') {
