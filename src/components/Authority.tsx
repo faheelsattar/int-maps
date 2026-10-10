@@ -59,6 +59,7 @@ export function FactList({ facts }: { facts: Fact[] }) {
           <span className={`mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full ${BACKING_DOT[f.backing]}`} aria-hidden />
           <span>
             {f.text}
+            {f.status === 'corrected' && <span className="ml-2 rounded-full bg-amber-300/10 px-1.5 py-px text-[10.5px] text-amber-200/90">corrected</span>}
             <span className="sr-only"> ({BACKING_TEXT[f.backing]})</span>
           </span>
         </li>

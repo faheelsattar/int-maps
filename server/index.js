@@ -30,22 +30,29 @@ const ERAS = {
 };
 
 const TONES = {
-  epic: 'epic and cinematic, like the opening of a historical blockbuster',
-  mystery: 'hushed and suspenseful, like a campfire mystery',
-  heartfelt: 'warm and intimate, focused on the human beings involved',
-  witty: 'dry, witty and wry, like a mischievous museum guide',
+  epic: 'gripping and dramatic, building tension toward the big moment',
+  mystery: 'quiet and suspenseful, like a good story told around a campfire',
+  heartfelt: 'warm and personal, focused on the people involved and what they went through',
+  witty: 'light and playful with a dry sense of humour, like a favourite tour guide',
 };
+
+// Which stories to look for: the landmark events, or hidden gems.
+const PICKS = {
+  famous: 'Pick the most famous, historically significant events in that city, the ones most people would expect to hear about (e.g. at Dunkirk, the 1940 evacuation).',
+  hidden: 'Pick surprising, lesser-known events over the most obvious, famous ones: hidden gems most people have never heard of.',
+};
+const FACT_CHECK = process.env.FACT_CHECK !== 'false';
 
 const SOURCE_RULES = `Source authority matters. Use, in this order: official and government sites, archives, libraries, museums, universities and scholarly encyclopedias; then Wikipedia and established news or history publishers. Do not rely on travel blogs, forums, social media, Q&A or review sites. If an event is only documented by weak sources, choose a better-documented one.`;
 
 /** Step 1: grounded research brief in plain prose (prose is reliably cited; JSON output often wasn't). */
-function researchPrompt({ lat, lng, place, era, exclude, focus }) {
+function researchPrompt({ lat, lng, place, era, exclude, focus, pick }) {
   return `Research brief for a storyteller. Run Google Search before writing, and take every claim from your search results, not from memory.
 
 A traveller dropped a pin at latitude ${lat.toFixed(5)}, longitude ${lng.toFixed(5)}${place ? ` ("${place}")` : ''}.
 Work at CITY level: the city or town the pin falls in. If the pin is outside any settlement, use the nearest town; for open ocean, desert or ice, the nearest genuinely documented site.
 
-${focus ? `The traveller asked for this specific event: "${focus}". Research THAT event and correct any wrong details.` : `Find ONE real, well-documented event from ${ERAS[era] || ERAS.any} that happened in that city. Prefer surprising, lesser-known events over the most obvious tourist fact.`}
+${focus ? `The traveller asked for this specific event: "${focus}". Research THAT event and correct any wrong details.` : `Find ONE real, well-documented event from ${ERAS[era] || ERAS.any} that happened in that city. ${PICKS[pick] || PICKS.famous}`}
 ${exclude?.length ? `Do NOT choose any of these already-told stories: ${exclude.map((t) => `"${t}"`).join(', ')}.` : ''}
 ${SOURCE_RULES}
 
@@ -60,17 +67,18 @@ Never invent anything; if a detail is uncertain, leave it out.`;
 
 /** Step 2: turn the brief into the narrated story, using only the brief. */
 function storyPrompt({ brief, tone, place }) {
-  return `You are "Echoes", a master storyteller. Turn the numbered research brief below into a narrated story about ${place || 'this city'}.
-Use ONLY facts stated in the brief. Do not add names, dates, numbers or events that are not in it.
+  return `You are "Echoes", a great storyteller who tells TRUE historical stories tied to real places, the way a gifted podcast host or documentary narrator would. Turn the numbered research brief below into a story about ${place || 'this city'}.
+Use ONLY facts stated in the brief: never add names, dates, numbers or events that are not in it.
+Only describe actions, orders, quotes, numbers and moments the brief reports. You may set the scene with things that are certain (the sea, the season, the uniforms), but do not make up who did what, motives, feelings or dramatic moments the brief doesn't describe. If you are unsure about a detail, leave it out.
 
-Narration style: ${TONES[tone] || TONES.epic}. Write for the ear, it will be read aloud by a voice actor:
-- 170 to 230 words, split into 6 to 9 short paragraphs of 1 to 3 sentences each, never more than 40 words in a paragraph.
-- Write it as literary prose, like a page from a novel, not a list of facts. Vary the rhythm: let a long, flowing sentence be followed by a short one that lands on its own. Give a pivotal moment a paragraph of a single sentence.
-- Open with an immersive hook that places the listener in the city at that moment ("It is the winter of 1814...").
-- Use sensory detail and what everyday life was like then, only where the brief describes it. Keep names, numbers and dates sparse: one or two per paragraph at most.
-- No lists, no markdown, no parentheses, no emoji, no URLs, no sentence numbers.
-- Write years as digits; spell out abbreviations.
-- End with a resonant line connecting the past to the city today.
+Narration style: ${TONES[tone] || TONES.epic}. It will be read aloud, so write the way a person talks to a friend, not the way a history book reads:
+- 170 to 230 words, split into 3 to 5 short paragraphs.
+- Use plain, everyday words that anyone can follow on the first listen. Explain every period or military term the first time it appears, in a few plain words ("a galleon, a big Spanish sailing ship", "royalists, soldiers still loyal to the exiled king"). Do not assume the listener knows words like flank, rout, siege, garrison or relief force; use the plain version or explain them.
+- Keep the drama in WHAT happened, not in fancy words. Concrete details (a name, a number, a sound, a moment) beat grand descriptions.
+- Mix short punchy sentences with medium ones; most sentences under 18 words. One idea per sentence, no stacked clauses.
+- Avoid flowery or bookish phrasing such as "tapestry", "testament to", "echoes of history", "etched in time", "little did they know", "amidst", "whilst", "harbinger".
+- Start by dropping the listener into the moment ("It's a freezing night in January 1814..."), and end with a simple line linking that moment to this city today.
+- No lists, no markdown, no parentheses, no emoji, no URLs, no sentence numbers. Write years as digits; spell out abbreviations.
 
 Research brief:
 ${brief.map((s) => `[${s.n}] ${s.text}`).join('\n')}
@@ -177,6 +185,54 @@ function haversineKm(a, b) {
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
+/**
+ * Second pass: Gemini re-checks every claim with Google Search, fixes errors and strips details it
+ * cannot confirm, changing as little as possible. Its sources are rated like the research's.
+ */
+async function factCheck(story) {
+  const prompt = `You are a meticulous fact-checker for a history storytelling app. Use Google Search to verify every factual claim in this story: dates, numbers, names, places, who did what, orders given, and specific dramatic actions.
+
+STORY:
+${JSON.stringify({ title: story.title, date: story.date, place: story.place, paragraphs: story.paragraphs, facts: story.facts.map((f) => f.text) }, null, 2)}
+
+Rules:
+- If a claim is wrong, correct it. If a specific detail cannot be confirmed by reliable sources, remove it or make it more general. Never add new unconfirmed details.
+- Change as little as possible. Keep exactly the same number of paragraphs, the plain spoken storytelling style and roughly the same length. If everything checks out, return the text unchanged.
+- Check each fact the same way and fix it if needed.
+${SOURCE_RULES}
+
+Reply with ONLY a JSON object (no code fences):
+{
+  "date": "corrected date if needed",
+  "paragraphs": ["..."],
+  "facts": [{"text": "...", "status": "confirmed" or "corrected"}],
+  "corrections": ["one short plain sentence per change, e.g. 'The treaty promised 6,000 troops; about 3,000 fought in the battle.'"]
+}`;
+  const response = await grounded(prompt, { temperature: 0.2 });
+  const data = extractJson(response.text);
+  const paragraphs = (data.paragraphs ?? []).map((p) => String(p).replace(/\[\d+(?:,\s*\d+)*\]/g, '').trim()).filter(Boolean);
+  const facts = (data.facts ?? [])
+    .filter((f) => f?.text)
+    .map((f, i) => ({ text: String(f.text), status: f.status === 'corrected' ? 'corrected' : 'confirmed', backing: story.facts[i]?.backing ?? 'unlinked' }))
+    .slice(0, 4);
+  if (!facts.length) throw new Error('Fact-check returned no facts');
+  // The storyboard is tied to paragraph positions, so a rewrite that changes their number is not applied.
+  if (paragraphs.length !== story.paragraphs.length) throw new Error(`Fact-check returned ${paragraphs.length} paragraphs, expected ${story.paragraphs.length}`);
+  const rated = assessAuthority({ groundingMetadata: response.groundingMetadata, text: response.text });
+  return {
+    date: data.date ? String(data.date) : story.date,
+    paragraphs,
+    facts,
+    corrections: (data.corrections ?? []).map(String).filter(Boolean).slice(0, 6),
+    sources: rated.sources,
+  };
+}
+
+function mergeSources(a, b) {
+  const seen = new Set();
+  return [...a, ...b].filter((s) => !seen.has(s.uri) && seen.add(s.uri)).slice(0, 10);
+}
+
 const MOTIONS = ['zoom-in', 'zoom-out', 'pan-left', 'pan-right', 'pan-up', 'pan-down'];
 const ATMOSPHERES = ['dust', 'embers', 'rain', 'snow', 'mist', 'none'];
 
@@ -206,13 +262,14 @@ app.post('/api/story', async (req, res) => {
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
     return res.status(400).json({ error: 'lat and lng are required numbers' });
   }
-  const { place, era = 'any', tone = 'epic', exclude = [], focus } = req.body;
+  const { place, era = 'any', tone = 'epic', pick = 'famous', exclude = [], focus } = req.body;
   const args = {
     lat,
     lng,
     place: typeof place === 'string' ? place.slice(0, 200) : '',
     era,
     tone,
+    pick: PICKS[pick] ? pick : 'famous',
     exclude: Array.isArray(exclude) ? exclude.slice(0, 10).map(String) : [],
     focus: typeof focus === 'string' ? focus.slice(0, 200) : '',
   };
@@ -277,7 +334,26 @@ app.post('/api/story', async (req, res) => {
         authority: verdict.authority,
         look: String(data.look ?? '').slice(0, 300),
         shots: storyboard(data.shots, paragraphs.length),
+        factCheck: { checked: false, corrections: [] },
       };
+
+      if (FACT_CHECK) {
+        const t2 = Date.now();
+        try {
+          const fc = await factCheck(story);
+          Object.assign(story, {
+            date: fc.date,
+            paragraphs: fc.paragraphs,
+            facts: fc.facts,
+            sources: mergeSources(story.sources, fc.sources),
+            factCheck: { checked: true, corrections: fc.corrections },
+          });
+          console.log(`[story] fact-check ${Date.now() - t2} ms, ${fc.corrections.length} corrections`);
+        } catch (err) {
+          // Still tell the story, just without the fact-checked badge.
+          console.error('[story] fact-check failed:', err.message);
+        }
+      }
       prepaintShots(story);
       return res.json(story);
     } catch (err) {
@@ -295,11 +371,12 @@ app.post('/api/stories', async (req, res) => {
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return res.status(400).json({ error: 'lat and lng are required numbers' });
   const place = typeof req.body?.place === 'string' ? req.body.place.slice(0, 200) : '';
   const era = ERAS[req.body?.era] ? req.body.era : 'any';
+  const pick = PICKS[req.body?.pick] ? req.body.pick : 'famous';
   const exclude = Array.isArray(req.body?.exclude) ? req.body.exclude.slice(0, 10).map((t) => String(t).slice(0, 120)) : [];
 
   const prompt = `Run Google Search, and take every event from your search results, not from memory.
 A traveller dropped a pin at latitude ${lat.toFixed(5)}, longitude ${lng.toFixed(5)}${place ? ` ("${place}")` : ''}. Work at CITY level: the city or town the pin falls in, or the nearest documented site.
-List 6 different real, well-documented events from ${ERAS[era]} that happened there. Mix famous moments with surprising, lesser-known ones, and spread them across different periods where possible.
+List 6 different real, well-documented events from ${ERAS[era]} that happened there, spread across different periods where possible. ${PICKS[pick]}
 ${exclude.length ? `Leave out these already-told stories: ${exclude.map((t) => `"${t}"`).join(', ')}.` : ''}
 ${SOURCE_RULES}
 Write exactly one line per event, nothing else, in this format:

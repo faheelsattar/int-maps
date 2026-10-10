@@ -50,7 +50,7 @@ export default function App() {
 function Experience() {
   const map = useMap();
   const geocoding = useMapsLibrary('geocoding');
-  const [settings, setSettings] = useState<Settings>({ voice: DEFAULT_VOICE, localAccent: true, historianBook: true, era: 'any', tone: 'epic', speed: 0.5 });
+  const [settings, setSettings] = useState<Settings>({ voice: DEFAULT_VOICE, localAccent: true, historianBook: true, era: 'any', pick: 'famous', tone: 'epic', speed: 0.5 });
   const [pin, setPin] = useState<LatLng | null>(null);
   const [place, setPlace] = useState('');
   const [story, setStory] = useState<Story | null>(null);
@@ -140,6 +140,7 @@ function Experience() {
             place: name,
             era: opts.era ?? settings.era,
             tone: opts.tone ?? settings.tone,
+            pick: settings.pick,
             exclude: told.current,
             ...(opts.focus
               ? { focus: `${opts.focus.title}${opts.focus.year != null ? ` (${opts.focus.year})` : ''}${opts.focus.teaser ? `: ${opts.focus.teaser}` : ''}` }
@@ -158,7 +159,7 @@ function Experience() {
         if (!ctrl.signal.aborted) setLoading(false);
       }
     },
-    [map, reverseGeocode, settings.era, settings.tone, settings.historianBook],
+    [map, reverseGeocode, settings.era, settings.tone, settings.pick, settings.historianBook],
   );
 
   /** A place was chosen: the historian lays out several of its stories to pick from. */
@@ -198,7 +199,7 @@ function Experience() {
           .catch(() => {}); // keep the default study
       }
       try {
-        const items = await fetchStories({ ...p, place: name, era: opts.era ?? settings.era, exclude: [...told.current, ...offered].slice(-10) }, ctrl.signal);
+        const items = await fetchStories({ ...p, place: name, era: opts.era ?? settings.era, pick: settings.pick, exclude: [...told.current, ...offered].slice(-10) }, ctrl.signal);
         if (ctrl.signal.aborted) return;
         shelf.current = { pin: p, items, offered: [...offered, ...items.map((c) => c.title)] };
         setChoices({ pin: p, items, loading: false });
@@ -208,7 +209,7 @@ function Experience() {
         setError((e as Error).message);
       }
     },
-    [map, locate, settings.era, settings.historianBook, settings.voice.gender],
+    [map, locate, settings.era, settings.pick, settings.historianBook, settings.voice.gender],
   );
 
   /** The listener picked a story from the list. */

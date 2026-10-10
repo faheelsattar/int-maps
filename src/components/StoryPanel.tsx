@@ -70,6 +70,8 @@ const LOADING_LINES = [
   'Cross-checking the chronicles…',
   'Tracing old maps and letters…',
   'Separating legend from fact…',
+  'Fact-checking every claim…',
+  'Double-checking dates and numbers…',
 ];
 
 function LoadingState({ place, onOpenTome }: { place: string; onOpenTome?: () => void }) {
@@ -218,8 +220,27 @@ function StoryView({ story, voice, narration, voiceControl, conversation, onAnot
 
           {story.facts.length > 0 && (
             <motion.section variants={fadeUp} className="mt-8">
-              <h3 className="eyebrow">Key facts</h3>
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="eyebrow">{story.factCheck?.checked ? 'Fact-checked' : 'Key facts'}</h3>
+                {story.factCheck?.checked && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/10 px-2 py-0.5 text-[11px] text-emerald-300/90">
+                    <CheckIcon /> checked with Google Search
+                  </span>
+                )}
+              </div>
               <FactList facts={story.facts} />
+              {(story.factCheck?.corrections.length ?? 0) > 0 && (
+                <details className="group mt-4 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-2.5">
+                  <summary className="cursor-pointer list-none text-xs text-white/55 transition hover:text-white/80">
+                    <span className="inline-block transition group-open:rotate-90">›</span> What the fact-check fixed ({story.factCheck.corrections.length})
+                  </summary>
+                  <ul className="mt-2 space-y-1.5 text-xs leading-relaxed text-white/60">
+                    {story.factCheck.corrections.map((c) => (
+                      <li key={c}>• {c}</li>
+                    ))}
+                  </ul>
+                </details>
+              )}
             </motion.section>
           )}
 
@@ -307,6 +328,14 @@ function Player({ voice, narration, voiceControl, onAnother }: { voice: Voice; n
         </button>
       </div>
     </div>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M2.5 6.2l2.3 2.3 4.7-5" />
+    </svg>
   );
 }
 

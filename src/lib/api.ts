@@ -1,5 +1,7 @@
 export type Era = 'any' | 'ancient' | 'medieval' | 'early' | 'modern';
 export type Tone = 'epic' | 'mystery' | 'heartfelt' | 'witty';
+/** Which stories to look for: the landmark events, or hidden gems. */
+export type Pick = 'famous' | 'hidden';
 
 export interface LatLng {
   lat: number;
@@ -26,6 +28,8 @@ export interface Fact {
   text: string;
   /** Strongest source tier backing this fact, or 'unlinked' when Gemini didn't link claims to sources. */
   backing: Tier | 'unlinked';
+  /** Set when the fact-check pass verified this fact with Google Search. */
+  status?: 'confirmed' | 'corrected';
 }
 
 export interface Authority {
@@ -65,10 +69,12 @@ export interface Story {
   /** Art direction shared by every shot. */
   look: string;
   shots: Shot[];
+  /** Second-pass fact-check with Google Search: whether it ran, and what it fixed. */
+  factCheck: { checked: boolean; corrections: string[] };
 }
 
 export async function fetchStory(
-  body: LatLng & { place?: string; era: Era; tone: Tone; exclude?: string[]; focus?: string },
+  body: LatLng & { place?: string; era: Era; tone: Tone; pick: Pick; exclude?: string[]; focus?: string },
   signal?: AbortSignal,
 ): Promise<Story> {
   const res = await fetch('/api/story', {
@@ -196,7 +202,7 @@ export interface StoryChoice {
 }
 
 export async function fetchStories(
-  body: LatLng & { place?: string; era: Era; exclude?: string[] },
+  body: LatLng & { place?: string; era: Era; pick: Pick; exclude?: string[] },
   signal?: AbortSignal,
 ): Promise<StoryChoice[]> {
   const res = await fetch('/api/stories', {
@@ -224,7 +230,7 @@ export async function fetchScene(place: string, gender: 'f' | 'm', signal?: Abor
 }
 
 /** Paints one shot of the storyboard (Nano Banana); resolves to the image URL. */
-export async function fetchShot(story: Pick<Story, 'look' | 'place' | 'year'>, shot: Shot, signal?: AbortSignal): Promise<string> {
+export async function fetchShot(story: { look: string; place: string; year: number | null }, shot: Shot, signal?: AbortSignal): Promise<string> {
   const res = await fetch('/api/shot', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
