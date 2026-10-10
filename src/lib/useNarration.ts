@@ -41,7 +41,9 @@ export function useNarration(paragraphs: string[] | null, voiceId: string, speed
         alignment.current = { count: words.length, map: alignWords(displayWords, words) };
       }
       let k = -1;
-      for (let i = 0; i < words.length && words[i].start <= t; i++) k = i;
+      // Light the word a touch early: it reads as "in sync" to the ear.
+      const lead = t + 0.08;
+      for (let i = 0; i < words.length && words[i].start <= lead; i++) k = i;
       setActiveWord(k >= 0 ? alignment.current.map[k] : -1);
       const next = { position: Math.floor(t * 4) / 4, duration: Math.floor(n.duration * 4) / 4 };
       setClock((c) => (c.position === next.position && c.duration === next.duration ? c : next));

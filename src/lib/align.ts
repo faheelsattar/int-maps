@@ -24,8 +24,14 @@ export function alignWords(display: string[], timed: TimedWord[]): number[] {
         }
       }
     }
-    if (found >= 0) cursor = found + 1;
-    out.push(found >= 0 ? found : Math.max(0, cursor - 1));
+    if (found >= 0) {
+      cursor = found + 1;
+      out.push(found);
+    } else {
+      // No match (e.g. "1814" spoken as "eighteen fourteen"): assume it's the next
+      // display word, without advancing, so the following real match resyncs us.
+      out.push(Math.min(cursor, d.length - 1));
+    }
   }
   return out;
 }

@@ -41,7 +41,7 @@ export default function App() {
 function Experience() {
   const map = useMap();
   const geocoding = useMapsLibrary('geocoding');
-  const [settings, setSettings] = useState<Settings>({ voice: DEFAULT_VOICE, era: 'any', tone: 'epic', speed: 0.5 });
+  const [settings, setSettings] = useState<Settings>({ voice: DEFAULT_VOICE, era: 'any', tone: 'epic', pick: 'famous', speed: 0.5 });
   const [pin, setPin] = useState<LatLng | null>(null);
   const [place, setPlace] = useState('');
   const [story, setStory] = useState<Story | null>(null);
@@ -97,6 +97,7 @@ function Experience() {
             place: name,
             era: settings.era,
             tone: settings.tone,
+            pick: settings.pick,
             exclude: told.current,
             ...(opts.focus ? { focus: `${opts.focus.title}${opts.focus.year != null ? ` (${opts.focus.year})` : ''}` } : {}),
           },
@@ -112,7 +113,7 @@ function Experience() {
         if (!ctrl.signal.aborted) setLoading(false);
       }
     },
-    [map, reverseGeocode, settings.era, settings.tone],
+    [map, reverseGeocode, settings.era, settings.tone, settings.pick],
   );
 
   const close = useCallback(() => {

@@ -7,6 +7,24 @@ export type NarratorState = 'idle' | 'loading' | 'playing' | 'paused' | 'ended' 
 
 let sharedCtx: AudioContext | null = null;
 
+/**
+ * Gradium usually times single words, but sometimes a whole phrase arrives as one
+ * segment. Split it into words, sharing the time span by character length.
+ */
+function splitSegment(text: string, start: number, stop: number): TimedWord[] {
+  const parts = text.split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) return [{ text, start, stop }];
+  const total = parts.reduce((n, p) => n + p.length + 1, 0);
+  const span = Math.max(0, stop - start);
+  let t = start;
+  return parts.map((p) => {
+    const d = (span * (p.length + 1)) / total;
+    const w = { text: p, start: t, stop: t + d };
+    t += d;
+    return w;
+  });
+}
+
 /** Must be called from a user gesture at least once so browsers allow audio. */
 export function unlockAudio() {
   if (!sharedCtx) sharedCtx = new AudioContext({ sampleRate: SAMPLE_RATE });
@@ -109,7 +127,7 @@ export class Narrator {
   private handle(msg: { type: string; audio?: string; text?: string; start_s?: number; stop_s?: number; message?: string }) {
     if (msg.type === 'audio' && msg.audio) this.enqueue(msg.audio);
     else if (msg.type === 'text' && msg.text != null && msg.start_s != null) {
-      this.words.push({ text: msg.text, start: msg.start_s, stop: msg.stop_s ?? msg.start_s });
+      this.words.push(...splitSegment(msg.text, msg.start_s, msg.stop_s ?? msg.start_s));
     } else if (msg.type === 'error') throw new Error(msg.message || 'Gradium error');
   }
 
