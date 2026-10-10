@@ -53,8 +53,10 @@ export class Narrator {
   private endTimer = 0;
   private listeners = new Set<() => void>();
 
-  constructor() {
-    this.ctx = unlockAudio();
+  /** Pass a separate context for spoken replies: pausing suspends the whole context. */
+  constructor(ctx: AudioContext = unlockAudio()) {
+    this.ctx = ctx;
+    if (this.ctx.state === 'suspended') void this.ctx.resume();
     this.gain = this.ctx.createGain();
     this.analyser = this.ctx.createAnalyser();
     this.analyser.fftSize = 256;

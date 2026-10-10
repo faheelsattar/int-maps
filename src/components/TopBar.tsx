@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import type { Era, Pick, Tone } from '../lib/api';
+import type { Era, Tone } from '../lib/api';
 import { VOICES, type Voice } from '../lib/voices';
 
 export interface Settings {
   voice: Voice;
   era: Era;
-  pick: Pick;
   tone: Tone;
   speed: number;
 }
@@ -17,11 +16,6 @@ const ERAS: { id: Era; label: string }[] = [
   { id: 'medieval', label: 'Medieval' },
   { id: 'early', label: '1500–1900' },
   { id: 'modern', label: 'Modern' },
-];
-
-const PICKS: { id: Pick; label: string; icon: string; hint: string }[] = [
-  { id: 'famous', label: 'Famous', icon: '⭐', hint: 'The landmark events' },
-  { id: 'hidden', label: 'Hidden gems', icon: '💎', hint: 'Stories few people know' },
 ];
 
 const TONES: { id: Tone; label: string; icon: string }[] = [
@@ -44,7 +38,6 @@ export function TopBar({ settings, onChange }: { settings: Settings; onChange: (
   const set = (patch: Partial<Settings>) => onChange({ ...settings, ...patch });
   const tone = TONES.find((t) => t.id === settings.tone)!;
   const era = ERAS.find((e) => e.id === settings.era)!;
-  const pick = PICKS.find((p) => p.id === settings.pick)!;
 
   return (
     <header className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-start justify-between gap-3 p-3 md:p-4">
@@ -60,8 +53,6 @@ export function TopBar({ settings, onChange }: { settings: Settings; onChange: (
         <button onClick={() => setOpen((o) => !o)} className="glass flex items-center gap-2.5 rounded-2xl px-3.5 py-2.5 text-sm text-white/85 transition hover:bg-white/[0.07]">
           <span className="text-lg leading-none">{settings.voice.flag}</span>
           <span className="font-medium">{settings.voice.name}</span>
-          <span className="hidden text-white/35 sm:inline">·</span>
-          <span className="hidden text-white/60 sm:inline">{pick.icon} {pick.label}</span>
           <span className="hidden text-white/35 sm:inline">·</span>
           <span className="hidden text-white/60 sm:inline">{tone.icon} {tone.label}</span>
           <span className="hidden text-white/35 md:inline">·</span>
@@ -98,19 +89,6 @@ export function TopBar({ settings, onChange }: { settings: Settings; onChange: (
                       <span className="block text-xs text-white/45">{v.blurb}</span>
                     </span>
                     {v.id === settings.voice.id && <span className="text-amber-200">●</span>}
-                  </button>
-                ))}
-              </div>
-
-              <p className="eyebrow mt-5">Discover</p>
-              <div className="mt-3 grid grid-cols-2 gap-1.5">
-                {PICKS.map((p) => (
-                  <button key={p.id} onClick={() => set({ pick: p.id })} className={`seg !flex-row !justify-start gap-2.5 !px-3 text-left ${p.id === settings.pick ? 'seg-on' : ''}`}>
-                    <span className="text-base">{p.icon}</span>
-                    <span className="leading-tight">
-                      <span className="block text-[12.5px] font-medium">{p.label}</span>
-                      <span className="block text-[11px] opacity-60">{p.hint}</span>
-                    </span>
                   </button>
                 ))}
               </div>
