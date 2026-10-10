@@ -22,6 +22,11 @@ export function useNarration(paragraphs: string[] | null, voiceId: string, speed
   const [run, setRun] = useState(0);
   const displayWords = useMemo(() => (paragraphs ?? []).flatMap((p) => p.split(/\s+/).filter(Boolean)), [paragraphs]);
   const alignment = useRef<{ count: number; map: number[] }>({ count: 0, map: [] });
+  // Voice and pace apply to the next play (new story, replay), so changing them doesn't restart and re-bill TTS.
+  const voiceRef = useRef(voiceId);
+  const speedRef = useRef(speed);
+  voiceRef.current = voiceId;
+  speedRef.current = speed;
 
   useEffect(() => {
     if (!paragraphs?.length) return;
@@ -31,7 +36,7 @@ export function useNarration(paragraphs: string[] | null, voiceId: string, speed
     setState('loading');
     setActiveWord(-1);
     const unsub = n.subscribe(() => setState(n.state));
-    void n.play(paragraphs, voiceId, speed);
+    void n.play(paragraphs, voiceRef.current, speedRef.current);
 
     let raf = 0;
     const tick = () => {
@@ -53,7 +58,7 @@ export function useNarration(paragraphs: string[] | null, voiceId: string, speed
       unsub();
       n.stop();
     };
-  }, [paragraphs, voiceId, speed, run, displayWords]);
+  }, [paragraphs, run, displayWords]);
 
   return {
     state,

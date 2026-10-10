@@ -3,6 +3,9 @@ import { motion } from 'framer-motion';
 import { formatYear, type NearbyEcho, type Story } from '../lib/api';
 import type { Narration } from '../lib/useNarration';
 import type { Voice } from '../lib/voices';
+import type { VoiceControl } from '../lib/useVoice';
+import { AuthorityBanner, FactList, SourceList } from './Authority';
+import { MicButton } from './Voice';
 import { Waveform } from './Waveform';
 
 interface Props {
@@ -12,6 +15,7 @@ interface Props {
   place: string;
   voice: Voice;
   narration: Narration;
+  voiceControl: VoiceControl;
   onClose: () => void;
   onAnother: () => void;
   onEcho: (e: NearbyEcho) => void;
@@ -94,7 +98,7 @@ function ErrorState({ error, onRetry }: Props) {
   );
 }
 
-function StoryView({ story, voice, narration, onAnother, onEcho }: Props & { story: Story }) {
+function StoryView({ story, voice, narration, voiceControl, onAnother, onEcho }: Props & { story: Story }) {
   const { state, activeWord } = narration;
   const scrollRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef<HTMLSpanElement>(null);
@@ -128,12 +132,17 @@ function StoryView({ story, voice, narration, onAnother, onEcho }: Props & { sto
               <path d="M12 2C7.6 2 4 5.5 4 9.9 4 15.5 12 22 12 22s8-6.5 8-12.1C20 5.5 16.4 2 12 2Zm0 10.6a2.7 2.7 0 1 1 0-5.4 2.7 2.7 0 0 1 0 5.4Z" />
             </svg>
             {story.place}
-            {story.distanceKm != null && story.distanceKm > 1 && <span className="text-white/35">· {Math.round(story.distanceKm)} km from your pin</span>}
+            {story.distanceKm != null && story.distanceKm >= 1 && <span className="text-white/35">· {Math.round(story.distanceKm)} km from your pin</span>}
           </motion.p>
           {story.hook && (
             <motion.p variants={fadeUp} className="mt-4 font-display text-lg italic leading-snug text-amber-100/80">
               “{story.hook}”
             </motion.p>
+          )}
+          {story.authority && (
+            <motion.div variants={fadeUp}>
+              <AuthorityBanner authority={story.authority} />
+            </motion.div>
           )}
 
           <motion.div variants={fadeUp} className="mt-6 space-y-4 text-[15.5px] leading-[1.75]">
@@ -154,21 +163,14 @@ function StoryView({ story, voice, narration, onAnother, onEcho }: Props & { sto
 
           {story.facts.length > 0 && (
             <motion.section variants={fadeUp} className="mt-8">
-              <h3 className="eyebrow">Verified facts</h3>
-              <ul className="mt-3 space-y-2">
-                {story.facts.map((f) => (
-                  <li key={f} className="flex gap-3 text-sm text-white/75">
-                    <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-amber-300/80" />
-                    {f}
-                  </li>
-                ))}
-              </ul>
+              <h3 className="eyebrow">Key facts</h3>
+              <FactList facts={story.facts} />
             </motion.section>
           )}
 
           {story.nearby.length > 0 && (
             <motion.section variants={fadeUp} className="mt-8">
-              <h3 className="eyebrow">More echoes nearby</h3>
+              <h3 className="eyebrow">More stories in this city</h3>
               <div className="mt-3 grid gap-2">
                 {story.nearby.map((n) => (
                   <button key={n.title} onClick={() => onEcho(n)} className="echo-card group">
@@ -184,26 +186,19 @@ function StoryView({ story, voice, narration, onAnother, onEcho }: Props & { sto
 
           {story.sources.length > 0 && (
             <motion.section variants={fadeUp} className="mt-8">
-              <h3 className="eyebrow">Sources · grounded with Google Search</h3>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {story.sources.map((s) => (
-                  <a key={s.uri} href={s.uri} target="_blank" rel="noreferrer" className="chip hover:bg-white/10" title={s.title}>
-                    <span className="max-w-[160px] truncate">{s.title}</span>
-                    <span className="text-white/40">↗</span>
-                  </a>
-                ))}
-              </div>
+              <h3 className="eyebrow">Sources · ranked by authority</h3>
+              <SourceList sources={story.sources} />
             </motion.section>
           )}
         </motion.div>
       </div>
 
-      <Player voice={voice} narration={narration} onAnother={onAnother} />
+      <Player voice={voice} narration={narration} voiceControl={voiceControl} onAnother={onAnother} />
     </>
   );
 }
 
-function Player({ voice, narration, onAnother }: { voice: Voice; narration: Narration; onAnother: () => void }) {
+function Player({ voice, narration, voiceControl, onAnother }: { voice: Voice; narration: Narration; voiceControl: VoiceControl; onAnother: () => void }) {
   const { state, toggle, restart, position, duration, narrator, error } = narration;
   const playing = state === 'playing';
   const progress = duration > 0 && narrator?.complete ? Math.min(1, position / duration) : 0;
@@ -247,7 +242,8 @@ function Player({ voice, narration, onAnother }: { voice: Voice; narration: Narr
           </div>
         </div>
       </div>
-      <div className="mt-4 flex gap-2">
+      <div className="mt-4 flex items-center gap-2">
+        <MicButton voice={voiceControl} size="md" />
         <button onClick={onAnother} className="btn-ghost flex-1">
           ✦ Another story here
         </button>
