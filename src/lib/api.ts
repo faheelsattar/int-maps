@@ -39,6 +39,8 @@ export interface Story {
   date: string;
   year: number | null;
   place: string;
+  /** ISO 3166-1 alpha-2 country of the place, used to pick a narrator with the local accent. */
+  countryCode: string | null;
   eventLat: number;
   eventLng: number;
   distanceKm: number | null;

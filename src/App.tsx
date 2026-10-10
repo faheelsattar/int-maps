@@ -11,7 +11,7 @@ import { unlockAudio } from './lib/narrator';
 import { useNarration } from './lib/useNarration';
 import { speak, stopSpeaking } from './lib/speak';
 import { useVoice } from './lib/useVoice';
-import { DEFAULT_VOICE, VOICES } from './lib/voices';
+import { DEFAULT_VOICE, VOICES, localVoice } from './lib/voices';
 
 const MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
 
@@ -44,7 +44,7 @@ export default function App() {
 function Experience() {
   const map = useMap();
   const geocoding = useMapsLibrary('geocoding');
-  const [settings, setSettings] = useState<Settings>({ voice: DEFAULT_VOICE, era: 'any', tone: 'epic', speed: 0.5 });
+  const [settings, setSettings] = useState<Settings>({ voice: DEFAULT_VOICE, localAccent: true, era: 'any', tone: 'epic', speed: 0.5 });
   const [pin, setPin] = useState<LatLng | null>(null);
   const [place, setPlace] = useState('');
   const [story, setStory] = useState<Story | null>(null);
@@ -54,7 +54,9 @@ function Experience() {
   const request = useRef<AbortController | null>(null);
   const lastQuery = useRef<{ pin: LatLng; focus?: NearbyEcho } | null>(null);
 
-  const narration = useNarration(story?.paragraphs ?? null, settings.voice.id, settings.speed);
+  // With local accent on, a story is narrated (and questions about it answered) in the accent of its place.
+  const narrator = story && settings.localAccent ? localVoice(story, settings.voice) : settings.voice;
+  const narration = useNarration(story?.paragraphs ?? null, narrator.id, settings.speed);
   const narrationRef = useRef(narration);
   narrationRef.current = narration;
 
@@ -175,7 +177,7 @@ function Experience() {
         }
         case 'set_voice': {
           const v = VOICES.find((x) => x.name.toLowerCase() === cmd.voice?.toLowerCase());
-          if (v) setSettings((s) => ({ ...s, voice: v }));
+          if (v) setSettings((s) => ({ ...s, voice: v, localAccent: false }));
           break;
         }
         case 'resume':
@@ -200,7 +202,7 @@ function Experience() {
   );
 
   const voice = useVoice({
-    voiceId: settings.voice.id,
+    voiceId: narrator.id,
     speed: settings.speed,
     getContext: () => ({
       place: story?.place || place,
@@ -267,7 +269,7 @@ function Experience() {
             loading={loading}
             error={error}
             place={place}
-            voice={settings.voice}
+            voice={narrator}
             narration={narration}
             voiceControl={voice}
             onClose={close}

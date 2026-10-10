@@ -76,6 +76,7 @@ Reply with ONLY a JSON object (no code fences) of this exact shape:
   "date": "human readable date, e.g. 14 April 1912",
   "year": 1912,
   "place": "where in the city it happened, e.g. Old Town, Basel, Switzerland",
+  "countryCode": "CH",
   "eventLat": 47.5596,
   "eventLng": 7.5886,
   "hook": "one-sentence teaser, max 18 words",
@@ -84,7 +85,7 @@ Reply with ONLY a JSON object (no code fences) of this exact shape:
   "nearby": [{"title": "another event from the brief, max 6 words", "year": 1066, "lat": 0.0, "lng": 0.0}]
 }
 "facts": exactly 3, each restating brief sentences; "from" lists the numbers of the brief sentences it comes from.
-"year" is negative for BCE. "eventLat"/"eventLng" and the nearby "lat"/"lng" are your best real coordinates for the locations named in the brief. "nearby" holds the 3 other events from the brief.`;
+"countryCode" is the ISO 3166-1 alpha-2 code of the country the place is in today (empty string for open sea or Antarctica). "year" is negative for BCE. "eventLat"/"eventLng" and the nearby "lat"/"lng" are your best real coordinates for the locations named in the brief. "nearby" holds the 3 other events from the brief.`;
 }
 
 function extractJson(text) {
@@ -225,6 +226,7 @@ app.post('/api/story', async (req, res) => {
         date: String(data.date ?? ''),
         year: num(data.year, null),
         place: String(data.place ?? place ?? ''),
+        countryCode: /^[A-Za-z]{2}$/.test(String(data.countryCode ?? '')) ? String(data.countryCode).toUpperCase() : null,
         eventLat,
         eventLng,
         distanceKm: Math.round(haversineKm({ lat, lng }, { lat: eventLat, lng: eventLng }) * 10) / 10,
