@@ -29,7 +29,12 @@ export function useNarration(paragraphs: string[] | null, voiceId: string, speed
   speedRef.current = speed;
 
   useEffect(() => {
-    if (!paragraphs?.length) return;
+    if (!paragraphs?.length) {
+      setNarrator(null);
+      setState('idle');
+      setActiveWord(-1);
+      return;
+    }
     const n = new Narrator();
     alignment.current = { count: 0, map: [] };
     setNarrator(n);

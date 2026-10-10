@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import type { Era, Tone } from '../lib/api';
+import type { Era, LatLng, Tone } from '../lib/api';
 import { VOICES, type Voice } from '../lib/voices';
+import { PlaceSearch } from './PlaceSearch';
 
 export interface Settings {
   voice: Voice;
   /** Narrate each story in the accent of its place, where Gradium has one. */
   localAccent: boolean;
+  /** Tell stories as an animated scene: the historian opens his book and reads from it. */
+  historianBook: boolean;
   era: Era;
   tone: Tone;
   speed: number;
@@ -30,10 +33,14 @@ const TONES: { id: Tone; label: string; icon: string }[] = [
 export function TopBar({
   settings,
   onChange,
+  onSearch,
+  onPick,
   onOpenTome,
 }: {
   settings: Settings;
   onChange: (s: Settings) => void;
+  onSearch: (query: string) => Promise<boolean>;
+  onPick: (p: LatLng, name: string) => void;
   onOpenTome?: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -51,20 +58,22 @@ export function TopBar({
 
   return (
     <header className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-start justify-between gap-3 p-3 md:p-4">
-      <div className="glass pointer-events-auto flex items-center gap-3 rounded-2xl px-4 py-2.5">
+      <div className="glass pointer-events-auto flex shrink-0 items-center gap-3 rounded-2xl px-3 py-2.5 sm:px-4">
         <Logo />
-        <div className="leading-tight">
+        <div className="hidden leading-tight sm:block">
           <h1 className="font-display text-xl tracking-tight text-white">Echoes</h1>
-          <p className="hidden text-[11px] text-white/45 sm:block">Every place has a story</p>
+          <p className="hidden text-[11px] text-white/45 lg:block">Every place has a story</p>
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      <PlaceSearch onSearch={onSearch} onPick={onPick} />
+
+      <div className="flex shrink-0 items-center gap-2">
         {onOpenTome && (
           <button
             onClick={onOpenTome}
             title="Open Historian Tome animation"
-            className="glass pointer-events-auto flex items-center gap-2 rounded-2xl px-3.5 py-2.5 text-sm text-amber-200 transition hover:bg-white/[0.08] hover:text-amber-100"
+            className="glass pointer-events-auto flex items-center gap-2 rounded-2xl px-3 py-2.5 text-sm text-amber-200 sm:px-3.5 transition hover:bg-white/[0.08] hover:text-amber-100"
           >
             <span className="text-base leading-none">📖</span>
             <span className="hidden font-medium sm:inline">Tome</span>
@@ -72,10 +81,10 @@ export function TopBar({
         )}
 
         <div ref={ref} className="pointer-events-auto relative">
-        <button onClick={() => setOpen((o) => !o)} className="glass flex items-center gap-2.5 rounded-2xl px-3.5 py-2.5 text-sm text-white/85 transition hover:bg-white/[0.07]">
+        <button onClick={() => setOpen((o) => !o)} aria-label="Narrator and story settings" className="glass flex items-center gap-2.5 rounded-2xl px-3 py-2.5 text-sm text-white/85 sm:px-3.5 transition hover:bg-white/[0.07]">
           <span className="text-lg leading-none">{settings.voice.flag}</span>
-          <span className="font-medium">{settings.voice.name}</span>
-          {settings.localAccent && <span title="Local accent on" className="text-sm leading-none">🌍</span>}
+          <span className="hidden font-medium sm:inline">{settings.voice.name}</span>
+          {settings.localAccent && <span title="Local accent on" className="hidden text-sm leading-none sm:inline">🌍</span>}
           <span className="hidden text-white/35 sm:inline">·</span>
           <span className="hidden text-white/60 sm:inline">{tone.icon} {tone.label}</span>
           <span className="hidden text-white/35 md:inline">·</span>
@@ -92,7 +101,7 @@ export function TopBar({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -8, scale: 0.98 }}
               transition={{ duration: 0.18 }}
-              className="panel absolute right-0 mt-2 w-[min(360px,calc(100vw-24px))] origin-top-right rounded-3xl p-5"
+              className="panel absolute right-0 mt-2 max-h-[calc(100dvh-90px)] w-[min(360px,calc(100vw-24px))] origin-top-right overflow-y-auto rounded-3xl p-5"
             >
               <p className="eyebrow">Narrator</p>
               <button
@@ -130,6 +139,22 @@ export function TopBar({
                   </button>
                 ))}
               </div>
+
+              <button
+                onClick={() => set({ historianBook: !settings.historianBook })}
+                role="switch"
+                aria-checked={settings.historianBook}
+                className="mt-4 flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition hover:bg-white/5"
+              >
+                <span className="text-xl">📖</span>
+                <span className="flex-1">
+                  <span className="block text-sm text-white">Historian's book</span>
+                  <span className="block text-xs text-white/45">Watch each story read aloud from an animated book. Off: just the story panel.</span>
+                </span>
+                <span className={`relative h-5 w-9 shrink-0 rounded-full transition ${settings.historianBook ? 'bg-amber-300' : 'bg-white/15'}`}>
+                  <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${settings.historianBook ? 'left-[18px]' : 'left-0.5'}`} />
+                </span>
+              </button>
 
               <p className="eyebrow mt-5">Mood</p>
               <div className="mt-3 grid grid-cols-4 gap-1.5">
